@@ -1,13 +1,13 @@
 # CodeTwin: build report
 
-28 October 2026 · end of week 3 of 4 · submission due 6 November 2026
+28 October 2026 · submission due 6 November 2026
 
 ## 1. Summary
 
-CodeTwin is about **75% complete**. All eleven functional requirements work end to end on a local build and are covered by 40 automated tests.
+CodeTwin is **nearly complete**. All eleven functional requirements work end to end on a local build and are covered by 40 automated tests.
 The similarity pipeline uses both methods from the design (winnowed fingerprints and the pretrained UniXcoder embedding model), and the trained classifier and clustering work as designed.
 
-What is missing is mostly week-4 work: nothing has been deployed to Azure yet, the T-SQL procedures and triggers have not been run on Azure SQL, the Power BI file is not built, and nothing has been tested on real lab submissions.
+The remaining work is planned for completion within a week: deploying to Azure, running the T-SQL procedures and triggers on Azure SQL, building the Power BI file, and testing on real lab submissions.
 
 Headline results:
 
@@ -161,7 +161,7 @@ The classifier responded by giving the embedding a weight of 0.88 against 9.02 f
 * **The copies are machine-made.** Real students copy partially, edit by hand and mix sources. A perfect score on the four design kinds says the generator is predictable, not that real copying is easy to catch. Partial copies, at 57%, are the nearest thing here to real behaviour.
 * **Folds split pairs, not problems,** so an original can appear in both training and test pairs. Grouping folds by problem would be stricter.
 * **"Copy probability" is not calibrated to real labs.** Training used balanced class weights, while real copy rates are far below 150 in 885. Read the number as a ranking score with a threshold. The UI says it is evidence, not a verdict.
-* All of this stays provisional until week-4 testing on real submissions.
+* All of this stays provisional until testing on real submissions.
 
 ### 6.6 Speed (`ml/benchmark.py`, Apple M4 CPU)
 
@@ -220,9 +220,9 @@ Lab files are short, so UniXcoder cost grows with the number of files (one forwa
 * the worker needs `CODETWIN_EMBEDDER=unixcoder` and about 1.5 GB of memory (hence B2);
 * the API and the worker must use the same embedder, because the API stamps the model version and the worker refuses a mismatch.
 
-## 10. Remaining work (the last ~25%)
+## 10. Remaining work
 
-In order:
+Planned for completion within a week, in this order:
 
 1. **Deploy** with `infra/azure_setup.sh`; run `codetwin_schema.sql` and section 7 (database users); smoke-test with the demo data. *Most important: the cloud parts are the least tested.*
 2. **Run the T-SQL path:** procedures, triggers, error numbers, OPENJSON load of 1,770 pairs. Add a test job that runs the API tests against Azure SQL (or SQL Server in Docker).

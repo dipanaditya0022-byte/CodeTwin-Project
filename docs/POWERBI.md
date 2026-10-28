@@ -24,4 +24,4 @@ Flagged rate per assignment needs the total pair count as well. Either add a mea
 (`SELECT run_id, COUNT(*) AS pair_count FROM similarity_pairs GROUP BY run_id`, with SELECT granted to
 `codetwin_report`), or show flagged counts only.
 
-Status: the views exist and are covered by tests on the local database. The `.pbix` file itself is not built yet (week 4).
+Status: the views exist and are covered by tests on the local database. The `.pbix` file will be built within a week.

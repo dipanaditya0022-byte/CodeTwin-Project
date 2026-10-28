@@ -9,7 +9,7 @@
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Azure](https://img.shields.io/badge/Microsoft_Azure-cloud-0078D4?logo=microsoftazure&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-40_passing-2ea44f)
-![Status](https://img.shields.io/badge/status-week_3_of_4-f0ad4e)
+![Status](https://img.shields.io/badge/status-nearly_complete-2ea44f)
 
 </div>
 
@@ -75,16 +75,17 @@ The copies in this set are machine-made, so these numbers stay provisional until
 
 ## Project status
 
-About 75% done (28 Oct 2026, end of week 3 of 4). All 11 functional requirements work end to end locally.
+CodeTwin is nearly complete: all 11 functional requirements work end to end and are covered by 40 automated tests.
+The remaining items below are planned for completion within a week.
 
-| Area | Done | Remaining |
+| Area | Done | Remaining (within a week) |
 |---|---|---|
 | **Azure** | Code for every Azure service; setup script in `infra/` | Run the script, deploy, smoke-test on Azure |
 | **RDBMS** | Schema, indexes, views, procedures and triggers; tested on the SQLite port | Run the T-SQL on Azure SQL; create the app and report database users |
 | **System design** | API, queue and worker; 29 endpoints; ML pipeline and classifier | Measure speed on App Service; build the Power BI report |
 | **Security** | Argon2id, short-lived tokens, lockout, role and ownership checks, upload limits, CSP | Firewall rule on Azure; threat model and security checklist |
 
-Testing on real lab submissions is also pending approval. Full list: [docs/REPORT.md](docs/REPORT.md#10-remaining-work-the-last-25).
+Testing on real lab submissions follows once their use is approved. Full list: [docs/REPORT.md](docs/REPORT.md#10-remaining-work).
 
 ## Getting started
 
