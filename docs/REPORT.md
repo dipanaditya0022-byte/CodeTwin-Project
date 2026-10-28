@@ -222,15 +222,57 @@ Lab files are short, so UniXcoder cost grows with the number of files (one forwa
 
 ## 10. Remaining work
 
-Planned for completion within a week, in this order:
+Everything below is planned for completion within a week. All application features are built and tested locally. What remains is mostly moving the system to Azure, proving the database objects there, and the reporting and security documents.
 
-1. **Deploy** with `infra/azure_setup.sh`; run `codetwin_schema.sql` and section 7 (database users); smoke-test with the demo data. *Most important: the cloud parts are the least tested.*
-2. **Run the T-SQL path:** procedures, triggers, error numbers, OPENJSON load of 1,770 pairs. Add a test job that runs the API tests against Azure SQL (or SQL Server in Docker).
-3. **Power BI report** from the three views (`docs/POWERBI.md` has the page plan).
-4. **Real lab submissions,** once someone approves their use and decides whether roll numbers must be anonymised (open question 4). Label a sample, measure precision and recall, set the threshold.
-5. **Threat model and security checklist** documents (section 7 is the starting point).
-6. **Before more than one API instance:** move token revocation and login lockout from process memory to a shared store such as Redis.
-7. Smaller items: an admin screen to deactivate users and reset passwords; frontend tests; a `pair_count` view for the flagged-rate visual.
+### 10.1 Azure deployment
+
+| # | Task | Done when |
+|---|---|---|
+| A1 | Run `infra/azure_setup.sh` to create the resource group, Azure SQL, storage (private container and queue), Cosmos DB, Key Vault and the App Service plan | All resources exist in one region and the script finishes without errors |
+| A2 | Store the four secrets in Key Vault (database URL, JWT signing key, storage connection, Cosmos key) and grant both apps' managed identities read access | The API starts with only `CODETWIN_KEY_VAULT_URL` set and no secrets in app settings |
+| A3 | Deploy the API and the worker to App Service, with `CODETWIN_EMBEDDER=unixcoder` on both | `GET /health` returns the UniXcoder model version from the Azure URL |
+| A4 | Deploy the React app to Static Web Apps, pointed at the API | Login works from the public URL over HTTPS |
+| A5 | Smoke test on Azure: upload a demo archive, start a run, review a cluster, respond as a student | Each step works end to end on Azure, and the 60-file run finishes within 5 minutes |
+
+### 10.2 Database (Azure SQL)
+
+| # | Task | Done when |
+|---|---|---|
+| D1 | Run `db/codetwin_schema.sql` on the Azure SQL database | 13 tables, 13 indexes, 3 views, 2 procedures and 2 triggers exist |
+| D2 | Create the `codetwin_app` and `codetwin_report` users (schema section 7), adding `DENY UPDATE ON dbo.reviews` for the app user (section 12) | The app user can call both procedures but cannot update `reviews` or `audit_log` directly |
+| D3 | Exercise the T-SQL path: save a 1,770-pair run with `usp_save_run_results`, record decisions with `usp_record_review_decision`, and try to edit the audit log | Results save all or none, error numbers 50010–50013 and 50020 are raised as designed, and audit rows cannot be changed |
+| D4 | Run the API test suite against SQL Server (Azure SQL or SQL Server in Docker) in CI | The 40 tests pass on SQL Server as well as SQLite |
+| D5 | Fix `vw_review_status` to compute hours as `DATEDIFF(MINUTE, …) / 60.0` (section 12) | Turnaround is accurate to the minute |
+
+### 10.3 Analytics
+
+| # | Task | Done when |
+|---|---|---|
+| P1 | Build the Power BI report from the three views through the read-only `codetwin_report` user (`docs/POWERBI.md`) | The three pages show flagged pairs, review status and repeat pairs |
+| P2 | Add a `pair_count` view so the report can show the flagged rate per assignment | The flagged-rate visual shows flagged pairs out of all pairs |
+
+### 10.4 Security
+
+| # | Task | Done when |
+|---|---|---|
+| S1 | Turn on the SQL firewall rule for the App Service outbound addresses and deny public access | The database rejects connections from any other address |
+| S2 | Confirm HTTPS-only and HSTS on App Service and Static Web Apps | Plain HTTP redirects to HTTPS |
+| S3 | Write the one-page threat model | Submitted, building on section 7 |
+| S4 | Complete the security checklist | Every item is marked with where it is met |
+| S5 | Move token revocation and login lockout from process memory to a shared store, if the API runs on more than one instance | Logout and lockout hold across instances |
+
+### 10.5 Testing and evaluation
+
+| # | Task | Done when |
+|---|---|---|
+| T1 | Test on real lab submissions, once their use is approved and the anonymisation of roll numbers is decided (open question 4) | A labelled sample has measured precision and recall, and the threshold is set from it |
+| T2 | Add automated frontend tests for login, comparison and review | They run in CI next to the backend tests |
+| T3 | Load-test the API with several users at once | Pages respond within 2 seconds under that load |
+
+### 10.6 Smaller items
+
+* An admin screen to deactivate users and reset passwords.
+* Update the design document with the changes in section 12 (canonicalisation step, partial-copy kind, report ID format, confirm-after-open rule, the six extra endpoints).
 
 ## 11. Known limitations
 
