@@ -1,0 +1,8 @@
+# Extra packages for the Azure deployment
+-r requirements.txt
+pyodbc==5.3.0
+azure-identity==1.27.0
+azure-keyvault-secrets==4.12.0
+azure-storage-blob==12.31.0
+azure-storage-queue==12.18.0
+azure-cosmos==4.17.1

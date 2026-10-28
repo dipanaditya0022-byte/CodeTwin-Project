@@ -1,0 +1,11 @@
+# API and worker (local development and tests)
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+argon2-cffi==25.1.0
+PyJWT==2.15.1
+pydantic-settings==2.16.2
+numpy==2.5.4
+scikit-learn==1.9.1
+httpx==0.28.1
+pytest==9.2.0

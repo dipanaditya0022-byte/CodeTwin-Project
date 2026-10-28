@@ -1,0 +1,19 @@
+{
+  "version": "unixcoder-canon+lr-2026.10.28",
+  "embedder": "unixcoder",
+  "coef": [
+    8.6381,
+    2.2874
+  ],
+  "intercept": -4.1893,
+  "threshold": 0.5,
+  "features": [
+    "fingerprint_score",
+    "embedding_score"
+  ],
+  "trained_on": {
+    "pairs": 885,
+    "positives": 150,
+    "negatives": 735
+  }
+}

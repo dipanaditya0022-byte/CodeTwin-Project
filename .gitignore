@@ -1,0 +1,22 @@
+# secrets
+.env
+*.env.local
+
+# local runtime data (SQLite database, blobs, reports, queue)
+/data/
+backend/data/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

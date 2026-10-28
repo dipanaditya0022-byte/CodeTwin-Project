@@ -1,0 +1,4 @@
+# The pretrained UniXcoder embedder (worker only; about 500 MB of weights downloaded on first use)
+-r requirements.txt
+torch==2.15.0
+transformers==5.21.0

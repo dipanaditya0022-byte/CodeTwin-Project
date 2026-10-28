@@ -1,0 +1,19 @@
+{
+  "version": "hashing-ngram+lr-2026.10.28",
+  "embedder": "hashing",
+  "coef": [
+    8.0653,
+    3.5106
+  ],
+  "intercept": -5.1347,
+  "threshold": 0.5,
+  "features": [
+    "fingerprint_score",
+    "embedding_score"
+  ],
+  "trained_on": {
+    "pairs": 885,
+    "positives": 150,
+    "negatives": 735
+  }
+}
