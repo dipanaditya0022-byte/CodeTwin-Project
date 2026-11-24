@@ -98,7 +98,7 @@ Results on the labelled set (885 pairs; 5-fold cross-validation **grouped by pro
 |---|---|
 | Precision | 1.00 (no honest pair flagged at threshold 0.5) |
 | Recall | 0.93 (every unchanged, renamed, reordered and restructured copy; 63% of partial copies) |
-| 60-file run (1,770 pairs) | 3.2 s on a laptop CPU, against a 5-minute target |
+| 60-file run (1,770 pairs) | 3.5 s with UniXcoder on a laptop CPU, against a 5-minute target |
 | Pages under load | 95% of requests under 1.3 s with 100 users at once (target 2 s); `ml/load_test.py` |
 
 **These numbers are synthetic.** The copies are machine-made from 30 hand-written solutions, so they show what the method can separate, not how it does on real students. Lowering the threshold catches more partial copies at the cost of false flags. The app shows that trade-off when you choose a threshold. A probability is evidence for a human decision, never a verdict. Details: [docs/REPORT.md](docs/REPORT.md#6-aiml-the-similarity-pipeline), section 6.7 for the latest model.
@@ -114,7 +114,7 @@ Everything runs end to end locally and is tested three ways, all in CI:
 |---|---|---|
 | **Product** | Self-service customers, forms and QR codes, imports, explained results, reports, participant results and responses, admin monitoring; browser-tested | — |
 | **RDBMS** | Schema, 6 migrations, views, procedures and triggers, tested on SQL Server 2022 and the SQLite port | Run them on the Azure SQL database once it exists |
-| **ML** | Three-score hashing model, grouped cross-validation, per-threshold trade-offs | Retrain the UniXcoder model with the third score; test on real, approved submissions |
+| **ML** | Three-score models for both embedders, grouped cross-validation, per-threshold trade-offs | Test on real, approved submissions |
 | **Azure** | Code for every service; setup script in `infra/` | Run the script, deploy, smoke-test, firewall rule, Power BI report |
 | **Security** | Argon2id, short-lived tokens, lockout, ownership checks on every endpoint, receipt codes, upload limits, CSP, proxy-aware rate limits; reviewed for this release | Threat model and security checklist documents |
 
@@ -159,8 +159,6 @@ The default embedder (`hashing`) needs no download. To use UniXcoder, as in the 
 pip install -r backend/requirements-ml.txt    # torch + transformers; ~500 MB of weights on first use
 export CODETWIN_EMBEDDER=unixcoder            # set for both the API and the worker
 ```
-
-The UniXcoder model has not yet been retrained with the containment score. It keeps working as a two-score model until you run `python ml/train.py --embedder unixcoder`.
 
 </details>
 

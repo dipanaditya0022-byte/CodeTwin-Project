@@ -99,7 +99,8 @@ def test_trained_model_is_monotonic_in_every_score():
 
 
 def test_two_score_models_still_load_and_score():
-    model = CopyClassifier.load(model_path_for("unixcoder"))
+    # a retired October model: runs it scored must stay explainable
+    model = CopyClassifier.load(model_path_for("unixcoder").parent / "archive" / "unixcoder-canon+lr-2026.10.28.json")
     assert not model.uses_containment and len(model.weights) == 2
     assert model.probability(0.9, 0.95) > model.threshold > model.probability(0.05, 0.6)
 

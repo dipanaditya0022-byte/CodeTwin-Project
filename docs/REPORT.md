@@ -195,9 +195,17 @@ The gain is real but small. The 11 partial copies still missed share at most 36%
 
 Learned weights (`hashing-ngram+cont+lr-2026.11.24`): fingerprint 3.97, embedding 1.56, containment 6.05, intercept −4.71. Containment now carries most of the weight.
 
-**Still not measured:**
-* The UniXcoder model has not been retrained with containment. PyTorch was not available where this was done. It keeps working as a two-score model; run `python ml/train.py --embedder unixcoder` where `requirements-ml.txt` is installed.
-* All figures are synthetic. Real-world precision and false-positive rate remain unknown until T1 (section 10.5).
+**UniXcoder, retrained the same way** (`unixcoder-canon+cont+lr-2026.11.24`; weights fingerprint 3.96, embedding 1.86, containment 6.10, intercept −4.86), grouped by problem:
+
+| | Precision | Recall | Partial-copy recall | False positives |
+|---|---|---|---|---|
+| Two-score UniXcoder model (October) | 1.000 | 0.913 | 0.567 | 0 |
+| **Three-score UniXcoder model (current)** | **1.000** | **0.927** | **0.633** | **0** |
+| Baseline max(fingerprint, embedding), UniXcoder | 0.882 | 0.800 | 0.067 | 16 (14 hard negatives) |
+
+A 60-file run takes 3.5 s and a 120-file run 5.8 s on the laptop CPU (`ml/benchmark.py`), against the 5-minute target. The retired October models of both embedders are in `models/archive/`.
+
+**Still not measured:** all figures are synthetic. Real-world precision and false-positive rate remain unknown until T1 (section 10.5).
 
 **Explanations.** Each pair now shows how much each score pushed its probability (weight × score on the log-odds scale; the parts add up), and names the main reason. Each run lists files whose scores deserve care: not valid Python (scored with the fallback reader), very little code of its own, nothing left after removing starter code, or mostly starter code. Machine suspicion and human decision are shown as two separate labels. A run's report downloads as CSV (every pair) or as printable HTML (summary, groups and decisions, flagged pairs with matched code side by side, method and limits).
 

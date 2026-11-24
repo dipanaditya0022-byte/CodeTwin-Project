@@ -1,19 +1,81 @@
 {
-  "version": "unixcoder-canon+lr-2026.10.28",
+  "version": "unixcoder-canon+cont+lr-2026.11.24",
   "embedder": "unixcoder",
-  "coef": [
-    8.6381,
-    2.2874
-  ],
-  "intercept": -4.1893,
-  "threshold": 0.5,
   "features": [
     "fingerprint_score",
-    "embedding_score"
+    "embedding_score",
+    "containment_score"
   ],
+  "coef": [
+    3.9637,
+    1.8638,
+    6.102
+  ],
+  "intercept": -4.8568,
+  "threshold": 0.5,
   "trained_on": {
     "pairs": 885,
     "positives": 150,
-    "negatives": 735
-  }
+    "negatives": 735,
+    "data": "synthetic: copies machine-made from 30 hand-written originals"
+  },
+  "operating_points": [
+    {
+      "threshold": 0.2,
+      "precision": 0.912,
+      "recall": 0.967,
+      "partial_recall": 0.833,
+      "false_positives_per_1000_honest_pairs": 19.0
+    },
+    {
+      "threshold": 0.3,
+      "precision": 0.941,
+      "recall": 0.953,
+      "partial_recall": 0.767,
+      "false_positives_per_1000_honest_pairs": 12.2
+    },
+    {
+      "threshold": 0.4,
+      "precision": 1.0,
+      "recall": 0.927,
+      "partial_recall": 0.633,
+      "false_positives_per_1000_honest_pairs": 0.0
+    },
+    {
+      "threshold": 0.5,
+      "precision": 1.0,
+      "recall": 0.927,
+      "partial_recall": 0.633,
+      "false_positives_per_1000_honest_pairs": 0.0
+    },
+    {
+      "threshold": 0.6,
+      "precision": 1.0,
+      "recall": 0.927,
+      "partial_recall": 0.633,
+      "false_positives_per_1000_honest_pairs": 0.0
+    },
+    {
+      "threshold": 0.7,
+      "precision": 1.0,
+      "recall": 0.92,
+      "partial_recall": 0.6,
+      "false_positives_per_1000_honest_pairs": 0.0
+    },
+    {
+      "threshold": 0.8,
+      "precision": 1.0,
+      "recall": 0.88,
+      "partial_recall": 0.4,
+      "false_positives_per_1000_honest_pairs": 0.0
+    },
+    {
+      "threshold": 0.9,
+      "precision": 1.0,
+      "recall": 0.86,
+      "partial_recall": 0.367,
+      "false_positives_per_1000_honest_pairs": 0.0
+    }
+  ],
+  "operating_points_from": "5-fold cross-validation grouped by problem, synthetic data"
 }
