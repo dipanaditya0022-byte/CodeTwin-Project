@@ -13,7 +13,7 @@
      7. Database users and permissions (template, commented out)
 
    Run the whole file once on an empty database. A database created from an
-   earlier version is brought up to date with db/migrations/*.sql instead.
+   earlier version is brought up to date with the scripts in db/migrations instead.
    ===================================================================== */
 
 SET ANSI_NULLS ON;

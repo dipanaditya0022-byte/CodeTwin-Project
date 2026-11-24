@@ -10,6 +10,11 @@
 --   * new view vw_submission_people; vw_suspicious_pairs and vw_repeat_pairs read names from it
 -- Take a database backup (or rely on point-in-time restore) before running. Safe to run more than once.
 
+-- Filtered indexes, computed columns and views need these settings; sqlcmd defaults QUOTED_IDENTIFIER to OFF.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 

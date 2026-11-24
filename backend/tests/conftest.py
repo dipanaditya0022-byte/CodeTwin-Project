@@ -1,5 +1,8 @@
 import io
+import os
+import re
 import sys
+import uuid
 import zipfile
 from pathlib import Path
 
@@ -29,10 +32,46 @@ def make_zip(files: dict[str, str]) -> bytes:
     return buf.getvalue()
 
 
+# Set CODETWIN_TEST_MSSQL to an ODBC connection string without a database (see db/tests/run_api_on_sqlserver.sh)
+# to run the whole suite against SQL Server: each test gets a fresh database built from codetwin_schema.sql.
+MSSQL = os.environ.get("CODETWIN_TEST_MSSQL")
+SCHEMA = Path(__file__).resolve().parents[2] / "db" / "codetwin_schema.sql"
+sqlite_only = pytest.mark.skipif(bool(MSSQL), reason="checks the SQLite port itself")
+
+
+def _mssql_database():
+    import pyodbc
+
+    name = f"ct_test_{uuid.uuid4().hex[:10]}"
+    with pyodbc.connect(MSSQL, autocommit=True) as server:
+        server.execute(f"CREATE DATABASE {name}")
+    with pyodbc.connect(f"{MSSQL};Database={name}", autocommit=True) as db:
+        for batch in re.split(r"^\s*GO\s*$", SCHEMA.read_text(), flags=re.M | re.I):
+            if batch.strip():
+                db.execute(batch)
+    return name
+
+
+def _drop_mssql_database(name: str) -> None:
+    import pyodbc
+
+    with pyodbc.connect(MSSQL, autocommit=True) as server:
+        server.execute(f"ALTER DATABASE {name} SET SINGLE_USER WITH ROLLBACK IMMEDIATE")
+        server.execute(f"DROP DATABASE {name}")
+
+
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(database_url=f"sqlite:///{tmp_path / 'test.db'}", data_dir=tmp_path, embedder="hashing",
-                    login_max_failures=3)
+    if not MSSQL:
+        yield Settings(database_url=f"sqlite:///{tmp_path / 'test.db'}", data_dir=tmp_path, embedder="hashing",
+                       login_max_failures=3)
+        return
+    name = _mssql_database()
+    try:
+        yield Settings(database_url=f"mssql://{MSSQL};Database={name}", data_dir=tmp_path, embedder="hashing",
+                       login_max_failures=3, jwt_secret="test-only-secret-of-at-least-32-characters")
+    finally:
+        _drop_mssql_database(name)
 
 
 @pytest.fixture

@@ -16,7 +16,8 @@ from contextlib import contextmanager
 
 from .config import Settings, get_settings
 from .db import Database
-from .procedures import ProcedureError, expire_stale_runs, save_run_results, stale_cutoff, utcnow, write_audit
+from .procedures import (FINISHED_AT, ProcedureError, expire_stale_runs, save_run_results, stale_cutoff, utcnow,
+                         write_audit)
 from .similarity.classifier import CopyClassifier, model_path_for
 from .similarity.embed import get_embedder
 from .similarity.pipeline import run_similarity
@@ -144,8 +145,9 @@ class Worker:
 
     def _mark_failed(self, run_id: int, exc: Exception) -> None:
         with self.db.transaction() as conn:
-            conn.execute("UPDATE similarity_runs SET status = 'failed', finished_at = ?, error_message = ?"
-                         " WHERE run_id = ? AND status <> 'completed'", [utcnow(), failure_message(exc), run_id])
+            now = utcnow()
+            conn.execute(f"UPDATE similarity_runs SET status = 'failed', finished_at = {FINISHED_AT}, error_message = ?"
+                         " WHERE run_id = ? AND status <> 'completed'", [now, now, failure_message(exc), run_id])
             detail = exc.message if isinstance(exc, ProcedureError) else f"{type(exc).__name__}: {exc}"
             write_audit(conn, None, "run_failed", "similarity_runs", run_id, "running", detail)
 

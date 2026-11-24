@@ -27,3 +27,13 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+
+  # The Azure SQL path: T-SQL schema and migrations, then the whole API suite on SQL Server 2022.
+  sqlserver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Schema, migrations and T-SQL behaviour
+        run: db/tests/run_sqlserver.sh
+      - name: API tests on SQL Server
+        run: db/tests/run_api_on_sqlserver.sh

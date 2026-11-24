@@ -1,9 +1,10 @@
 """P0 hardening: client address behind a proxy, secrets, body limits, stuck runs, evidence integrity."""
 import sqlite3
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
-from conftest import COPY_SET, PASSWORD, source
+from conftest import COPY_SET, PASSWORD, source, sqlite_only
 from fastapi.testclient import TestClient
 
 from codetwin.api.main import create_app
@@ -222,6 +223,7 @@ def test_runs_from_before_the_manifest_still_open(world, client, worker, app, se
 
 # ------------------------------------------------------------------ migration
 
+@sqlite_only
 def test_migration_adds_run_columns_to_an_existing_database_without_losing_data(tmp_path):
     old_schema = "\n".join(line for line in (SCHEMA_DIR / "schema_sqlite.sql").read_text().splitlines()
                            if "heartbeat_at" not in line and "error_message" not in line)
@@ -244,3 +246,14 @@ def test_migration_adds_run_columns_to_an_existing_database_without_losing_data(
         assert run["status"] == "running" and run["heartbeat_at"] is None and run["error_message"] is None
         assert conn.scalar("SELECT COUNT(*) FROM users") == 1
 
+
+
+def test_a_run_finishing_before_its_rounded_start_time_is_still_recorded(world, client, worker, app):
+    """SQL Server rounds started_at to the second while the app truncates; clocks can differ too."""
+    _, run_id = _queued_run(world, client)
+    with app.state.db.transaction() as conn:   # a start time just ahead of this server's clock
+        conn.execute("UPDATE similarity_runs SET started_at = ?, model_version = 'old-model' WHERE run_id = ?",
+                     [utcnow() + timedelta(seconds=2), run_id])
+    worker.process_once()   # fails fast (model mismatch) within that second
+    run = client.get(f"/runs/{run_id}", headers=world.teacher).json()
+    assert run["status"] == "failed" and run["finished_at"] >= run["started_at"]

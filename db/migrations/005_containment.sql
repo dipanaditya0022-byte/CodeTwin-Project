@@ -5,6 +5,11 @@
 -- fingerprint score dilutes. Nullable: runs scored by two-score models leave it empty.
 -- The save procedure is replaced so it stores the new score. Safe to run more than once.
 
+-- Filtered indexes, computed columns and views need these settings; sqlcmd defaults QUOTED_IDENTIFIER to OFF.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 IF COL_LENGTH('dbo.similarity_pairs', 'containment_score') IS NULL
     ALTER TABLE dbo.similarity_pairs ADD containment_score DECIMAL(5,4) NULL
         CONSTRAINT CK_pairs_containment CHECK (containment_score BETWEEN 0 AND 1);

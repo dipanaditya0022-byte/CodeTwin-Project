@@ -8,6 +8,11 @@
 --
 -- Local SQLite databases get the same columns automatically at start-up (db.py, _migrate_sqlite).
 
+-- Filtered indexes, computed columns and views need these settings; sqlcmd defaults QUOTED_IDENTIFIER to OFF.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 IF COL_LENGTH('dbo.similarity_runs', 'heartbeat_at') IS NULL
     ALTER TABLE dbo.similarity_runs ADD heartbeat_at DATETIME2(0) NULL;
 GO

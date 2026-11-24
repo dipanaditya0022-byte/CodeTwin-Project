@@ -27,6 +27,13 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
 
 
+# A run's finish time, never earlier than its start. started_at is set by the database
+# (SYSUTCDATETIME() into DATETIME2(0), which rounds to the nearest second) while utcnow() truncates,
+# and the app and database servers' clocks can differ slightly; without this, a run ending within a
+# second of its start could break CHECK (finished_at >= started_at). Takes the time twice: [t, t].
+FINISHED_AT = "CASE WHEN ? < started_at THEN started_at ELSE ? END"
+
+
 def _raise_from_mssql(exc: Exception) -> None:
     match = re.search(r"\((500\d\d)\)", str(exc))
     if match:
@@ -69,8 +76,9 @@ def save_run_results(db: Database, run_id: int, pairs: list[dict], clusters: lis
             )
             conn.execute("INSERT INTO reviews (cluster_id) VALUES (?)", [cluster_id])
 
-        conn.execute("UPDATE similarity_runs SET status = 'completed', finished_at = ? WHERE run_id = ?",
-                     [utcnow(), run_id])
+        now = utcnow()
+        conn.execute(f"UPDATE similarity_runs SET status = 'completed', finished_at = {FINISHED_AT} WHERE run_id = ?",
+                     [now, now, run_id])
         conn.execute(
             "INSERT INTO audit_log (actor_id, action, entity, entity_id, old_value, new_value)"
             " SELECT started_by, 'run_completed', 'similarity_runs', run_id, 'running', 'completed'"
@@ -154,7 +162,8 @@ def expire_stale_runs(conn: Conn, stale_seconds: int, assignment_id: int | None 
         params.append(assignment_id)
     expired = [r["run_id"] for r in conn.all(sql, params)]
     for run_id in expired:
-        conn.execute("UPDATE similarity_runs SET status = 'failed', finished_at = ?, error_message = ?"
-                     " WHERE run_id = ? AND status = 'running'", [utcnow(), STALE_RUN_MESSAGE, run_id])
+        now = utcnow()
+        conn.execute(f"UPDATE similarity_runs SET status = 'failed', finished_at = {FINISHED_AT}, error_message = ?"
+                     " WHERE run_id = ? AND status = 'running'", [now, now, STALE_RUN_MESSAGE, run_id])
         write_audit(conn, None, "run_failed", "similarity_runs", run_id, "running", "worker stopped responding")
     return expired

@@ -1,7 +1,7 @@
-import sqlite3
-
 import pytest
 from conftest import COPY_SET, PASSWORD, make_zip, source
+
+from codetwin.db import integrity_errors
 
 
 # ------------------------------------------------------------------ FR1 login and roles
@@ -274,13 +274,13 @@ def test_repeat_pairs_across_assignments(world, client, worker):
 # ------------------------------------------------------------------ integrity and availability
 
 def test_audit_log_is_append_only(world, app):
-    path = app.state.db.target
-    conn = sqlite3.connect(path)
-    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
-        conn.execute("UPDATE audit_log SET action = 'x'")
-    with pytest.raises(sqlite3.IntegrityError, match="append-only"):
-        conn.execute("DELETE FROM audit_log")
-    conn.close()
+    # the database refuses it (a trigger on both SQLite and SQL Server), whatever the application does
+    for sql in ("UPDATE audit_log SET action = 'x'", "DELETE FROM audit_log"):
+        with pytest.raises(Exception, match="append-only"):
+            with app.state.db.transaction() as conn:
+                conn.execute(sql)
+    with app.state.db.connect() as conn:
+        assert conn.scalar("SELECT COUNT(*) FROM audit_log WHERE action = 'x'") == 0
 
 
 def test_failed_run_saves_nothing_and_can_be_retried(world, client, worker, app, monkeypatch):
@@ -318,7 +318,7 @@ def test_save_is_all_or_none(world, client, worker, app):
     ids = sorted(s["submission_id"] for s in subs)
     good = {"a": ids[0], "b": ids[1], "fp": 0.9, "emb": 0.9, "p": 0.9, "doc": None}
     bad = {"a": ids[3], "b": ids[2], "fp": 0.9, "emb": 0.9, "p": 0.9, "doc": None}   # breaks a < b
-    with pytest.raises(sqlite3.IntegrityError):
+    with pytest.raises(integrity_errors()):
         save_run_results(db, run_id, [good, bad], [])
     with db.connect() as conn:
         assert conn.scalar("SELECT COUNT(*) FROM similarity_pairs WHERE run_id = ?", [run_id]) == 0

@@ -3,6 +3,11 @@
 -- Additive: one new table and three nullable columns on dbo.submissions. No row is changed.
 -- Safe to run more than once.
 
+-- Filtered indexes, computed columns and views need these settings; sqlcmd defaults QUOTED_IDENTIFIER to OFF.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 

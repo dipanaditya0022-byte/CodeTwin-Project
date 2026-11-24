@@ -7,6 +7,11 @@
 -- * an index on submissions.receipt_hash
 -- Take a backup (or note the point-in-time restore time) first. Safe to run more than once.
 
+-- Filtered indexes, computed columns and views need these settings; sqlcmd defaults QUOTED_IDENTIFIER to OFF.
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+GO
+
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 

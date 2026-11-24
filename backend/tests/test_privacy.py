@@ -215,6 +215,7 @@ def test_overview_reports_request_metrics_errors_and_storage(app, admin):
         raise RuntimeError("test failure")
 
     app.add_api_route("/boom-for-test", boom)
+    app.state.stores.blobs.put("submissions/0/x.py", b"print(1)\n")   # something in storage to count
     client = TestClient(app, raise_server_exceptions=False)
     for _ in range(3):
         client.get("/health")
