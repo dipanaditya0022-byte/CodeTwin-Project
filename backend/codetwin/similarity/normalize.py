@@ -30,10 +30,16 @@ _SOFT_KEYWORDS = set(getattr(keyword, "softkwlist", []))
 
 
 def normalize(source: str) -> list[Tok]:
+    return normalize_checked(source)[0]
+
+
+def normalize_checked(source: str) -> tuple[list[Tok], bool]:
+    """(tokens, exact). exact is False when Python could not tokenise the file (for example a syntax
+    error) and the regex fallback was used: the file is still compared, a little less precisely."""
     try:
-        return _with_tokenize(source)
+        return _with_tokenize(source), True
     except (tokenize.TokenError, IndentationError, SyntaxError):
-        return _with_regex(source)
+        return _with_regex(source), False
 
 
 def _with_tokenize(source: str) -> list[Tok]:

@@ -32,6 +32,37 @@ def get_settings(request: Request) -> Settings:
     return request.app.state.settings
 
 
+def _strip_port(value: str) -> str:
+    value = value.strip()
+    if value.startswith("["):                      # [2001:db8::1]:443
+        return value[1:value.find("]")] if "]" in value else value
+    if value.count(":") == 1:                      # 203.0.113.7:51234 (App Service adds the port)
+        return value.split(":")[0]
+    return value
+
+
+def client_ip(request: Request) -> str:
+    """The caller's address, for rate limits and the audit log.
+
+    Only the entries appended by our own proxies are trusted. A client can put anything in
+    X-Forwarded-For, so the entries to the left of those are ignored.
+    """
+    hops = request.app.state.settings.trusted_proxy_hops
+    if hops > 0:
+        chain = [p for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+        if len(chain) >= hops:
+            return _strip_port(chain[-hops])
+    return request.client.host if request.client else "unknown"
+
+
+def is_https(request: Request) -> bool:
+    if request.app.state.settings.trusted_proxy_hops > 0:
+        proto = request.headers.get("x-forwarded-proto", "").split(",")[-1].strip().lower()
+        if proto:
+            return proto == "https"
+    return request.url.scheme == "https"
+
+
 def get_db(request: Request) -> Database:
     return request.app.state.db
 
@@ -53,8 +84,7 @@ def current_caller(request: Request, creds: HTTPAuthorizationCredentials | None 
         active = conn.scalar("SELECT is_active FROM users WHERE user_id = ?", [int(payload["sub"])])
     if not active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Account disabled")
-    ip = request.client.host if request.client else None
-    return Caller(int(payload["sub"]), payload["role"], payload, ip)
+    return Caller(int(payload["sub"]), payload["role"], payload, client_ip(request))
 
 
 def require(*roles: str):

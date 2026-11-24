@@ -38,6 +38,9 @@ class LocalBlobStore:
     def get(self, path: str) -> bytes:
         return (self.root / _safe_relative(path)).read_bytes()
 
+    def delete(self, path: str) -> None:
+        (self.root / _safe_relative(path)).unlink(missing_ok=True)
+
 
 class AzureBlobStore:
     def __init__(self, connection_string: str, container: str):
@@ -50,6 +53,22 @@ class AzureBlobStore:
 
     def get(self, path: str) -> bytes:
         return self.container.download_blob(str(_safe_relative(path))).readall()
+
+    def delete(self, path: str) -> None:
+        from azure.core.exceptions import ResourceNotFoundError
+
+        try:
+            self.container.delete_blob(str(_safe_relative(path)))
+        except ResourceNotFoundError:
+            pass
+
+
+WORKER_HEALTH_PATH = "health/worker.json"   # written by the worker about once a minute
+
+
+def manifest_path(run_id: int) -> str:
+    """The blob that records which stored file each submission had when a run scored it."""
+    return f"runs/{run_id}/manifest.json"
 
 
 # ---------------------------------------------------------------- match reports
@@ -99,11 +118,16 @@ class QueueMessage:
 
 
 class LocalQueue:
-    """A folder queue. A worker claims a message by renaming it, which is atomic."""
+    """A folder queue. A worker claims a message by renaming it, which is atomic.
 
-    def __init__(self, root: Path):
+    Like the Azure queue, a claimed message comes back after a visibility timeout if the worker
+    that claimed it never deleted it (for example because the process was killed mid-run).
+    """
+
+    def __init__(self, root: Path, visibility_timeout: float = 600):
         self.root = root / "queue"
         self.root.mkdir(parents=True, exist_ok=True)
+        self.visibility_timeout = visibility_timeout
 
     def send(self, body: dict) -> None:
         name = f"{time.time_ns():020d}-{uuid.uuid4().hex[:8]}"
@@ -112,17 +136,31 @@ class LocalQueue:
         tmp.rename(self.root / f"{name}.msg")
 
     def receive(self) -> QueueMessage | None:
+        self._release_abandoned()
         for msg in sorted(self.root.glob("*.msg")):
-            claimed = msg.with_suffix(f".{os.getpid()}.work")
+            claimed = self.root / f"{msg.stem}.{os.getpid()}-{uuid.uuid4().hex[:6]}.work"
             try:
                 msg.rename(claimed)
             except FileNotFoundError:
                 continue  # another worker took it
+            os.utime(claimed)   # the claim time, which the visibility timeout counts from
             return QueueMessage(json.loads(claimed.read_text()), claimed)
         return None
 
+    def _release_abandoned(self) -> None:
+        cutoff = time.time() - self.visibility_timeout
+        for work in self.root.glob("*.work"):
+            try:
+                if work.stat().st_mtime < cutoff:
+                    work.rename(self.root / f"{work.name.split('.')[0]}.msg")
+            except FileNotFoundError:
+                continue  # finished or released by another worker meanwhile
+
     def delete(self, message: QueueMessage) -> None:
         Path(message.handle).unlink(missing_ok=True)
+
+    def depth(self) -> dict:
+        return {"waiting": len(list(self.root.glob("*.msg"))), "in_progress": len(list(self.root.glob("*.work")))}
 
 
 class AzureQueue:
@@ -142,6 +180,10 @@ class AzureQueue:
 
     def delete(self, message: QueueMessage) -> None:
         self.client.delete_message(message.handle)
+
+    def depth(self) -> dict:
+        # Azure reports an approximate count of all messages, including ones a worker holds
+        return {"waiting": self.client.get_queue_properties().approximate_message_count, "in_progress": None}
 
 
 # ---------------------------------------------------------------- factory

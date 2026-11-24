@@ -51,7 +51,10 @@ for APP in "$API_APP" "$WORKER_APP"; do
   az webapp identity assign -g "$RG" -n "$APP"
 done
 az webapp config set -g "$RG" -n "$API_APP" --always-on true \
-  --startup-file "python -m uvicorn codetwin.api.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"
+  --startup-file "python -m uvicorn codetwin.api.main:app --host 0.0.0.0 --port 8000 --no-proxy-headers"
+# The client address comes from the last X-Forwarded-For entry, which the App Service front end
+# appends (CODETWIN_TRUSTED_PROXY_HOPS=1 below). Trusting every entry would let a client fake its
+# address and skip the per-IP rate limits.
 az webapp config set -g "$RG" -n "$WORKER_APP" --always-on true --startup-file "python -m codetwin.worker"
 
 # ---- Key Vault: secrets read by both apps through their managed identities
@@ -72,6 +75,7 @@ for APP in "$API_APP" "$WORKER_APP"; do
     CODETWIN_STORAGE_BACKEND=azure \
     CODETWIN_COSMOS_URL="https://$COSMOS.documents.azure.com:443/" \
     CODETWIN_CORS_ORIGINS="[\"https://$WEB_APP.azurestaticapps.net\"]" \
+    CODETWIN_TRUSTED_PROXY_HOPS=1 \
     SCM_DO_BUILD_DURING_DEPLOYMENT=true > /dev/null
 done
 # the worker needs the UniXcoder packages; set CODETWIN_EMBEDDER=unixcoder on BOTH apps once

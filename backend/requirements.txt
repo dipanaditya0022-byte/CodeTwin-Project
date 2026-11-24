@@ -7,5 +7,6 @@ PyJWT==2.15.1
 pydantic-settings==2.16.2
 numpy==2.5.4
 scikit-learn==1.9.1
+openpyxl==3.1.5          # reading .xlsx response sheets for imports
 httpx==0.28.1
 pytest==9.2.0

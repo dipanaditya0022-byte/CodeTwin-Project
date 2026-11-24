@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, pct, when } from "../api.js";
+import { api, download, pct, when, person } from "../api.js";
 import { Empty, ErrorNote, Loading, Status, useApi } from "../ui.jsx";
 
 export default function Run() {
@@ -47,9 +47,40 @@ export default function Run() {
             <div><dt>Threshold</dt><dd>{run.threshold}</dd></div>
             <div><dt>Model</dt><dd><code>{run.model_version}</code></dd></div>
           </dl>
+          {run.threshold_meaning && (
+            <p className="muted small">
+              On the labelled test set (synthetic copies), a threshold of {run.threshold_meaning.threshold} caught{" "}
+              {pct(run.threshold_meaning.recall)} of copies and {pct(run.threshold_meaning.partial_recall)} of partial
+              copies, with {run.threshold_meaning.false_positives_per_1000_honest_pairs} false flags per 1,000 honest
+              pairs. Real submissions may differ.
+            </p>
+          )}
+          {done && (
+            <p className="downloads">
+              <button onClick={() => download(`/runs/${run.run_id}/report.html`, `codetwin-run-${run.run_id}.html`)}>
+                Download report (HTML, prints to PDF)</button>
+              <button onClick={() => download(`/runs/${run.run_id}/report.csv`, `codetwin-run-${run.run_id}.csv`)}>
+                Download all pairs (CSV)</button>
+            </p>
+          )}
+          {done && run.file_notes?.length > 0 && (
+            <details className="card note-care">
+              <summary><strong>{run.file_notes.length} file{run.file_notes.length === 1 ? "" : "s"} to read with care</strong>
+                {" "}— their scores are less reliable</summary>
+              <ul>
+                {run.file_notes.map((f) => (
+                  <li key={f.submission_id}>{person(f.roll_no, f.full_name)}: {f.notes.map((n) => n.text).join(" ")}</li>
+                ))}
+              </ul>
+            </details>
+          )}
           {(run.status === "queued" || run.status === "running") && <p className="muted">Working… this page refreshes itself.</p>}
           {run.status === "failed" && (
-            <p>The run failed and saved nothing. <button onClick={retry}>Retry</button> <ErrorNote error={retryError} /></p>
+            <div className="run-failed" role="alert">
+              <p><strong>The run failed and saved nothing.</strong></p>
+              {run.error_message && <p>{run.error_message}</p>}
+              <p><button onClick={retry}>Retry</button> <ErrorNote error={retryError} /></p>
+            </div>
           )}
           {done && (
             <>
@@ -66,7 +97,7 @@ export default function Run() {
                         {clusters?.map((c) => (
                           <tr key={c.cluster_id}>
                             <td>#{c.cluster_no}</td>
-                            <td>{c.members.map((m) => `${m.roll_no} ${m.full_name}`).join(", ")}</td>
+                            <td>{c.members.map((m) => person(m.roll_no, m.full_name)).join(", ")}</td>
                             <td>{pct(c.max_probability)}</td><td><Status value={c.decision} /></td>
                             <td>{c.response_count}</td>
                             <td><Link to={`/reviews/${c.review_id}`}>Review</Link></td>
@@ -93,8 +124,8 @@ export default function Run() {
                       <tbody>
                         {pairs?.items.map((p) => (
                           <tr key={p.pair_id} className={p.flagged ? "flagged" : ""}>
-                            <td>{p.student_a_roll_no} · {p.student_a_name}</td>
-                            <td>{p.student_b_roll_no} · {p.student_b_name}</td>
+                            <td>{person(p.student_a_roll_no, p.student_a_name)}</td>
+                            <td>{person(p.student_b_roll_no, p.student_b_name)}</td>
                             <td>{pct(p.fingerprint_score)}</td><td>{pct(p.embedding_score)}</td>
                             <td><Meter value={p.copy_probability} /></td>
                             <td><Link to={`/pairs/${p.pair_id}`}>Compare</Link></td>

@@ -146,7 +146,7 @@ def test_run_scores_all_pairs_and_clusters_the_copy(world, client, finished_run)
     run = client.get(f"/runs/{run_id}", headers=world.teacher).json()
     assert run["status"] == "completed" and run["pair_count"] == 6
     assert run["flagged_count"] == 1 and run["cluster_count"] == 1
-    assert run["model_version"].startswith("hashing-ngram+lr")
+    assert run["model_version"].startswith("hashing-ngram")
 
     pairs = client.get(f"/runs/{run_id}/pairs", headers=world.teacher).json()
     probs = [p["copy_probability"] for p in pairs["items"]]
@@ -347,6 +347,65 @@ def test_security_headers(client):
     r = client.get("/health")
     assert r.headers["X-Content-Type-Options"] == "nosniff"
     assert "default-src 'none'" in r.headers["Content-Security-Policy"]
+
+
+# ------------------------------------------------------------------ public: sign-up and demo
+
+SIGNUP = {"full_name": "New Customer", "email": "New@Test.edu", "password": PASSWORD}
+
+
+def test_signup_creates_a_customer_and_signs_in(world, client):
+    r = client.post("/auth/signup", json={**SIGNUP, "role": "admin"})   # a requested role is ignored
+    assert r.status_code == 201, r.text
+    user = r.json()["user"]
+    # a customer is stored with the teacher role and owns nothing until it creates something
+    assert user["role"] == "teacher" and user["email"] == "new@test.edu" and user["roll_no"] is None
+    headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    assert client.get("/auth/me", headers=headers).json()["user_id"] == user["user_id"]
+    assert client.get("/courses", headers=headers).json() == []
+    assert client.post("/auth/login", json={"email": "new@test.edu", "password": PASSWORD}).status_code == 200
+
+
+def test_signup_cannot_claim_a_students_roll_number(world, client, app):
+    """A stranger must not be able to take a roll number and receive that student's enrolment."""
+    r = client.post("/auth/signup", json={**SIGNUP, "roll_no": "R777"})
+    assert r.status_code == 201 and r.json()["user"]["roll_no"] is None
+    enrol = client.post(f"/courses/{world.course_id}/enrolments", headers=world.admin, json={"roll_nos": ["R777"]})
+    assert enrol.json()["added"] == []
+    # nor can a sign-up see an existing course, its submissions or its runs
+    headers = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    a = world.assignment()
+    sub = world.upload(a, {"R001.py": "print(1)\n"})["accepted"][0]["submission_id"]
+    assert client.get(f"/assignments/{a}/submissions", headers=headers).status_code == 404
+    assert client.get(f"/submissions/{sub}", headers=headers).status_code == 404
+
+
+def test_signup_rejects_bad_input_and_duplicates(world, client):
+    assert client.post("/auth/signup", json={**SIGNUP, "password": "short"}).status_code == 422
+    assert client.post("/auth/signup", json={**SIGNUP, "email": "not-an-email"}).status_code == 422
+    assert client.post("/auth/signup", json={**SIGNUP, "email": "s1@test.edu"}).status_code == 409
+
+
+def test_signup_is_rate_limited(client, app):
+    app.state.signup_throttle.max_failures = 2
+    for i in range(2):
+        client.post("/auth/signup", json={**SIGNUP, "email": f"n{i}@test.edu"})
+    assert client.post("/auth/signup", json=SIGNUP).status_code == 429
+
+
+def test_demo_compare_scores_a_copy_above_an_unrelated_file(client):
+    original = source("p05_bsearch_a")
+    copy = client.post("/demo/compare", json={"code_a": original, "code_b": source("p05_bsearch_a__renamed")}).json()
+    other = client.post("/demo/compare", json={"code_a": original, "code_b": source("p08_stats_b")}).json()
+    assert copy["flagged"] and copy["matches"] and copy["copy_probability"] > other["copy_probability"]
+    assert not other["flagged"]
+
+
+def test_demo_compare_validates_and_is_rate_limited(client, app):
+    assert client.post("/demo/compare", json={"code_a": "x = 1", "code_b": "  "}).status_code == 422
+    assert client.post("/demo/compare", json={"code_a": "x" * 20_001, "code_b": "y = 2"}).status_code == 422
+    app.state.demo_throttle.max_failures = 0
+    assert client.post("/demo/compare", json={"code_a": "x = 1", "code_b": "y = 2"}).status_code == 429
 
 
 def test_power_bi_views(world, client, finished_run, app):

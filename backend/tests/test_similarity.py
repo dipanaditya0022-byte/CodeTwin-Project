@@ -1,9 +1,11 @@
+import pytest
 from conftest import source
 
 from codetwin.similarity.classifier import CopyClassifier, model_path_for
 from codetwin.similarity.cluster import cluster_pairs
 from codetwin.similarity.embed import HashingEmbedder
-from codetwin.similarity.fingerprint import fingerprint, fingerprint_score, matched_regions, winnow
+from codetwin.similarity.fingerprint import (containment_score, fingerprint, fingerprint_score, matched_regions,
+                                             winnow)
 from codetwin.similarity.normalize import normalize
 from codetwin.similarity.pipeline import run_similarity
 
@@ -88,10 +90,48 @@ def test_clusters_join_pairs_that_share_a_submission():
     assert clusters == [[7, 9], [1, 2, 3]]
 
 
-def test_trained_model_is_monotonic_in_both_scores():
+def test_trained_model_is_monotonic_in_every_score():
     model = CopyClassifier.load(model_path_for("hashing"))
-    assert model.w_fingerprint > 0 and model.w_embedding > 0
+    assert model.uses_containment and all(w > 0 for w in model.weights)   # every score pushes towards 'copy'
+    assert model.probability(0.9, 0.95, 0.95) > model.threshold > model.probability(0.05, 0.6, 0.1)
+    with pytest.raises(ValueError):
+        model.probability(0.9, 0.95)   # a three-score model cannot silently drop a score
+
+
+def test_two_score_models_still_load_and_score():
+    model = CopyClassifier.load(model_path_for("unixcoder"))
+    assert not model.uses_containment and len(model.weights) == 2
     assert model.probability(0.9, 0.95) > model.threshold > model.probability(0.05, 0.6)
+
+
+def test_explanation_parts_add_up_to_the_probability():
+    model = CopyClassifier.load(model_path_for("hashing"))
+    scores = {"fingerprint_score": 0.4, "embedding_score": 0.8, "containment_score": 0.7}
+    e = model.explain(scores)
+    assert abs(e["probability"] - model.probability(0.4, 0.8, 0.7)) < 1e-3
+    assert e["main_reason"] == max(e["parts"], key=lambda p: p["contribution"])["label"]
+    assert len(e["parts"]) == 3
+
+
+def test_containment_catches_a_block_copied_into_a_larger_file():
+    original = source("p10_sort_a")
+    padded = original + "\n\n" + source("p08_stats_b") + "\n" + source("p03_primes_c")
+    a, b = fingerprint(original), fingerprint(padded)
+    assert containment_score(a, b) > 0.9 > fingerprint_score(a, b) * 2
+
+
+def test_file_notes_explain_unreliable_files():
+    from codetwin.similarity.pipeline import file_notes
+
+    starter = source("p08_stats_a")   # a teacher's template the student barely changed
+    prints = {1: fingerprint("x = (\n"), 2: fingerprint("print(1)\n"), 3: fingerprint(source("p10_sort_a")),
+              4: fingerprint(starter + "\nresult = 1\n")}
+    notes = file_notes(prints, set(fingerprint(starter).hashes))
+    codes = {sid: {n["code"] for n in v} for sid, v in notes.items()}
+    assert "not_valid_python" in codes[1]
+    assert "very_short" in codes[2] or "nothing_to_compare" in codes[2]
+    assert 3 not in codes
+    assert "mostly_starter" in codes[4]
 
 
 def test_pipeline_flags_the_copy_and_only_the_copy():

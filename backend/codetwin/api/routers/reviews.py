@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, Upl
 from pydantic import BaseModel, Field
 
 from ...procedures import ProcedureError, record_review_decision, write_audit
+from ...results import WAS_OPENED, own_matches
 from ..deps import (Caller, current_caller, get_db, get_settings, get_stores, not_found, require, review_scope,
                     student_in_cluster)
 
@@ -26,8 +27,19 @@ student_only = require("student")
 EVIDENCE_TYPES = {".py": "text/plain", ".txt": "text/plain", ".pdf": "application/pdf",
                   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}
 
-WAS_OPENED = ("EXISTS (SELECT 1 FROM audit_log AS l WHERE l.entity = 'reviews' AND l.entity_id = rv.review_id"
-              " AND l.new_value = 'under_review')")
+
+
+async def read_evidence(evidence: UploadFile | None, settings) -> tuple[bytes | None, str | None]:
+    """The optional evidence file of a response, checked: allowed type and size. (None, None) if absent."""
+    if evidence is None or not evidence.filename:
+        return None, None
+    suffix = PurePosixPath(evidence.filename.replace("\\", "/")).suffix.lower()
+    if suffix not in EVIDENCE_TYPES:
+        raise HTTPException(422, "Evidence must be a .py, .txt, .pdf, .png or .jpg file")
+    data = await evidence.read(settings.max_evidence_bytes + 1)
+    if len(data) > settings.max_evidence_bytes:
+        raise HTTPException(413, "Evidence file is too large")
+    return data, suffix
 
 
 def _teacher_review(conn, review_id: int, caller: Caller) -> dict:
@@ -42,9 +54,9 @@ def get_review(review_id: int, caller: Caller = Depends(teacher_only), db=Depend
     with db.connect() as conn:
         scope = _teacher_review(conn, review_id, caller)
         members = conn.all(
-            "SELECT s.submission_id, s.student_id, u.roll_no, u.full_name FROM cluster_members AS m"
-            " JOIN submissions AS s ON s.submission_id = m.submission_id JOIN users AS u ON u.user_id = s.student_id"
-            " WHERE m.cluster_id = ? ORDER BY u.roll_no", [scope["cluster_id"]])
+            "SELECT sp.submission_id, sp.student_id, sp.participant_id, sp.person_kind, sp.roll_no, sp.full_name"
+            " FROM cluster_members AS m JOIN vw_submission_people AS sp ON sp.submission_id = m.submission_id"
+            " WHERE m.cluster_id = ? ORDER BY sp.roll_no, sp.full_name", [scope["cluster_id"]])
         ids = [m["submission_id"] for m in members]
         marks = ", ".join("?" for _ in ids)
         pairs = conn.all(
@@ -53,9 +65,13 @@ def get_review(review_id: int, caller: Caller = Depends(teacher_only), db=Depend
             " AND copy_probability >= ? ORDER BY copy_probability DESC",
             [scope["run_id"], *ids, *ids, scope["threshold"]])
         responses = conn.all(
-            "SELECT rs.response_id, rs.student_id, u.roll_no, u.full_name, rs.response_text, rs.created_at,"
+            "SELECT rs.response_id, rs.student_id, rs.participant_id,"
+            " COALESCE(u.roll_no, pt.roll_no) AS roll_no, COALESCE(u.full_name, pt.display_name) AS full_name,"
+            " CASE WHEN rs.student_id IS NULL THEN 'participant' ELSE 'student' END AS person_kind,"
+            " rs.response_text, rs.created_at,"
             " CASE WHEN rs.evidence_blob_path IS NULL THEN 0 ELSE 1 END AS has_evidence"
-            " FROM responses AS rs JOIN users AS u ON u.user_id = rs.student_id WHERE rs.review_id = ?"
+            " FROM responses AS rs LEFT JOIN users AS u ON u.user_id = rs.student_id"
+            " LEFT JOIN participants AS pt ON pt.participant_id = rs.participant_id WHERE rs.review_id = ?"
             " ORDER BY rs.created_at", [review_id])
         history = conn.all(
             "SELECT l.action, l.old_value, l.new_value, l.created_at, u.full_name AS actor_name FROM audit_log AS l"
@@ -118,18 +134,27 @@ def my_flags(caller: Caller = Depends(student_only), db=Depends(get_db)):
         return flags
 
 
+@router.get("/me/flags/{review_id}")
+def my_case(review_id: int, caller: Caller = Depends(student_only), db=Depends(get_db), stores=Depends(get_stores)):
+    """The student's own code with the lines that matched someone in the group. Nothing about the others."""
+    with db.connect() as conn:
+        scope = review_scope(conn, review_id)
+        submission_id = scope and student_in_cluster(conn, scope["cluster_id"], caller.user_id)
+        opened = submission_id and conn.scalar(
+            f"SELECT 1 FROM reviews AS rv WHERE rv.review_id = ? AND rv.decision <> 'pending' AND {WAS_OPENED}",
+            [review_id])
+        if not opened:
+            raise not_found("Review not found")
+        view = own_matches(conn, stores, submission_id, scope["cluster_id"], scope["run_id"])
+    return {"review_id": review_id, "assignment_title": scope["assignment_title"], "decision": scope["decision"],
+            **view}
+
+
 @router.post("/reviews/{review_id}/responses", status_code=status.HTTP_201_CREATED)
 async def respond(review_id: int, response_text: str = Form(min_length=1, max_length=2000),
                   evidence: UploadFile | None = File(None), caller: Caller = Depends(student_only),
                   db=Depends(get_db), stores=Depends(get_stores), settings=Depends(get_settings)):
-    evidence_bytes, suffix = None, None
-    if evidence is not None and evidence.filename:
-        suffix = PurePosixPath(evidence.filename.replace("\\", "/")).suffix.lower()
-        if suffix not in EVIDENCE_TYPES:
-            raise HTTPException(422, "Evidence must be a .py, .txt, .pdf, .png or .jpg file")
-        evidence_bytes = await evidence.read(settings.max_evidence_bytes + 1)
-        if len(evidence_bytes) > settings.max_evidence_bytes:
-            raise HTTPException(413, "Evidence file is too large")
+    evidence_bytes, suffix = await read_evidence(evidence, settings)
 
     with db.transaction() as conn:
         scope = review_scope(conn, review_id)

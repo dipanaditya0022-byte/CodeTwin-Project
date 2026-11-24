@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from ...procedures import write_audit
 from ...security import create_token, revoke_token, verify_password
-from ..deps import Caller, current_caller, get_db, get_settings
+from ..deps import Caller, client_ip, current_caller, get_db, get_settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -40,7 +40,7 @@ def login(body: LoginIn, request: Request, db=Depends(get_db), settings=Depends(
         row = conn.one("SELECT u.user_id, u.password_hash, u.is_active, r.role_name AS role FROM users AS u"
                        " JOIN roles AS r ON r.role_id = u.role_id WHERE u.email = ?", [key])
     ok = verify_password(row["password_hash"] if row else None, body.password)
-    ip = request.client.host if request.client else None
+    ip = client_ip(request)
     if not ok or not row["is_active"]:
         throttle.fail(key)
         if row:

@@ -35,7 +35,7 @@ export async function api(path, { method = "GET", json, form, raw } = {}) {
     body = form;
   }
   const res = await fetch(`${BASE}${path}`, { method, headers, body });
-  if (res.status === 401 && path !== "/auth/login") {
+  if (res.status === 401 && token) {
     setToken(null);
     window.dispatchEvent(new Event("codetwin:signed-out"));
   }
@@ -64,3 +64,6 @@ export async function download(path, filename) {
 
 export const pct = (v) => (v == null ? "–" : `${(Number(v) * 100).toFixed(1)}%`);
 export const when = (v) => (v ? new Date(String(v).replace(" ", "T") + (String(v).includes("Z") ? "" : "Z")).toLocaleString() : "–");
+
+// A person as "22CS014 · Aarav Shah", or just the name for someone without a roll number.
+export const person = (roll, name) => (roll ? `${roll} · ${name}` : name ?? "");

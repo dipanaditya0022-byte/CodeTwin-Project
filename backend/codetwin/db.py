@@ -140,8 +140,81 @@ class Database:
             exists = raw.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'").fetchone()
             if not exists:
                 raw.executescript((SCHEMA_DIR / "schema_sqlite.sql").read_text())
+            _migrate_sqlite(raw, self.target)
         finally:
             raw.close()
+
+
+# Additive changes made after the first release, for databases created from an older schema.
+# Each entry adds a nullable column and never drops or rewrites data. A fresh database already has
+# them (schema_sqlite.sql); Azure SQL gets the same columns from db/migrations/*.sql.
+SQLITE_ADDED_COLUMNS = [
+    ("similarity_runs", "heartbeat_at", "TEXT NULL"),            # 001: last sign of life from the worker
+    ("similarity_runs", "error_message", "VARCHAR(500) NULL"),   # 001: why a run failed, shown to the teacher
+    ("similarity_pairs", "containment_score",                    # 005: third score, for partial copies
+     "DECIMAL(5,4) NULL CHECK (containment_score BETWEEN 0 AND 1)"),
+]
+
+
+def _columns(raw, table: str) -> set[str]:
+    return {row[1] for row in raw.execute(f"PRAGMA table_info({table})")}
+
+
+def _migrate_sqlite(raw, path: str) -> None:
+    for table, column, definition in SQLITE_ADDED_COLUMNS:
+        if column not in _columns(raw, table):
+            raw.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+    if "participant_id" not in _columns(raw, "submissions"):
+        _rebuild(raw, path, "002_participants_sqlite.sql", "submissions")
+    courses_sql = raw.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'courses'").fetchone()[0]
+    if "teacher_id, course_code, semester" not in courses_sql:
+        _rebuild(raw, path, "003_course_code_per_owner_sqlite.sql", "courses")
+    if not raw.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'submission_forms'").fetchone():
+        _rebuild(raw, path, "004_forms_sqlite.sql", "submissions")   # additive; same checks and backup
+    if "participant_id" not in _columns(raw, "responses"):
+        _rebuild(raw, path, "006_participant_results_sqlite.sql", "responses")
+
+
+def _only_comments(sql: str) -> bool:
+    return all(not line.strip() or line.strip().startswith("--") for line in sql.splitlines())
+
+
+def _rebuild(raw, path: str, script_name: str, table: str) -> None:
+    """Run a migration that rebuilds a table (SQLite's create-copy-drop-rename procedure).
+
+    The database file is backed up first. Everything runs in one transaction, which commits only if
+    the rebuilt table has the same number of rows and the foreign-key check finds nothing wrong.
+    Foreign-key enforcement is paused (it can only change outside a transaction), and legacy
+    ALTER TABLE keeps views that name the table valid while it is briefly missing.
+    """
+    import shutil
+
+    tag = script_name.split("_")[0]
+    if path != ":memory:" and Path(path).exists():
+        raw.execute("PRAGMA wal_checkpoint(TRUNCATE)")   # so the backup file holds every committed change
+        shutil.copy2(path, f"{path}.before-{tag}.bak")
+    script = (SCHEMA_DIR / "migrations" / script_name).read_text()
+    statements = [s.strip() for s in script.split(";\n") if s.strip() and not _only_comments(s)]
+    before = raw.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+    raw.execute("PRAGMA foreign_keys = OFF")
+    raw.execute("PRAGMA legacy_alter_table = ON")
+    try:
+        raw.execute("BEGIN IMMEDIATE")
+        for statement in statements:
+            raw.execute(statement)
+        problems = raw.execute("PRAGMA foreign_key_check").fetchall()
+        after = raw.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        if problems or after != before:
+            raise RuntimeError(f"migration {tag} check failed ({len(problems)} foreign-key problems, "
+                               f"{before} {table} rows before, {after} after); nothing was changed")
+        raw.execute("COMMIT")
+    except BaseException:
+        if raw.in_transaction:
+            raw.execute("ROLLBACK")
+        raise
+    finally:
+        raw.execute("PRAGMA legacy_alter_table = OFF")
+        raw.execute("PRAGMA foreign_keys = ON")
 
 
 def integrity_errors() -> tuple[type[Exception], ...]:

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, pct, when } from "../api.js";
 import { Empty, ErrorNote, Loading, Status, useApi } from "../ui.jsx";
+import { OwnCode } from "./Results.jsx";
 
 const EXPLAIN = {
   under_review: "Your teacher found your submission very similar to another student's and asks for your side. You can respond once.",
@@ -64,7 +65,7 @@ export function MyFlags() {
               {f.decided_at && <div><dt>Decided</dt><dd>{when(f.decided_at)}</dd></div>}
             </dl>
             {f.reason && <p><strong>Teacher's reason:</strong> {f.reason}</p>}
-            <p><Link to={`/submissions/${f.submission_id}`}>View my submission</Link></p>
+            <p><Link to={`/me/cases/${f.review_id}`}>See which parts of my file matched</Link></p>
             {f.my_response ? (
               <blockquote>
                 <p>{f.my_response.response_text}</p>
@@ -89,6 +90,24 @@ export function MySubmission() {
           <h1>{sub.assignment_title}</h1>
           <p className="muted">{sub.roll_no} · {sub.line_count} lines · uploaded {when(sub.uploaded_at)}</p>
           <pre className="code">{sub.code}</pre>
+        </section>
+      )}
+    </Loading>
+  );
+}
+
+export function MyCase() {
+  const { reviewId } = useParams();
+  const [c, error] = useApi(`/me/flags/${reviewId}`);
+  return (
+    <Loading data={c} error={error}>
+      {c && (
+        <section>
+          <p className="crumbs"><Link to="/me">My flags</Link></p>
+          <h1>{c.assignment_title} <Status value={c.decision} /></h1>
+          <p className="muted">Marked lines in your file matched another submission in this group. The other files
+            and who wrote them are not shown. Highest copy probability: {pct(c.highest_probability)}.</p>
+          <OwnCode code={c.code} matchedLines={c.matched_lines} />
         </section>
       )}
     </Loading>

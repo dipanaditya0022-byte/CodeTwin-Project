@@ -1,15 +1,48 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, pct, when } from "../api.js";
+import { api, pct, when, person } from "../api.js";
 import { Empty, ErrorNote, Loading, Status, useApi } from "../ui.jsx";
+import { AnswersCell, Collect, SOURCE_LABEL } from "./Collect.jsx";
+
+function NewCourse({ onCreated }) {
+  const blank = { course_code: "", course_name: "", semester: "" };
+  const [form, setForm] = useState(blank);
+  const [error, setError] = useState(null);
+  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+
+  async function create(e) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await api("/courses", { method: "POST", json: form });
+      setForm(blank);
+      onCreated();
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  return (
+    <form className="card inline-form" onSubmit={create}>
+      <h2>New course or batch</h2>
+      <input placeholder="Short code, e.g. DSA-1" value={form.course_code} onChange={set("course_code")}
+             required minLength={2} maxLength={20} />
+      <input placeholder="Name, e.g. Data structures, evening batch" value={form.course_name}
+             onChange={set("course_name")} required maxLength={120} />
+      <input placeholder="Term (optional)" value={form.semester} onChange={set("semester")} maxLength={20} />
+      <button className="primary">Create</button>
+      <ErrorNote error={error} />
+    </form>
+  );
+}
 
 export function TeacherHome() {
-  const [courses, error] = useApi("/courses");
+  const [courses, error, reload] = useApi("/courses");
   return (
     <section>
       <h1>My courses</h1>
       <Loading data={courses} error={error}>
-        {courses?.length === 0 ? <Empty>No courses are assigned to you yet. An admin creates them.</Empty> : (
+        {courses?.length === 0 ? <Empty>No courses yet. Create one below to start collecting submissions.</Empty> : (
           <div className="grid">
             {courses?.map((c) => (
               <Link key={c.course_id} to={`/courses/${c.course_id}`} className="card tile">
@@ -21,6 +54,7 @@ export function TeacherHome() {
           </div>
         )}
       </Loading>
+      <NewCourse onCreated={reload} />
     </section>
   );
 }
@@ -85,14 +119,15 @@ export function Course() {
       </form>
 
       <h2>Repeat pairs</h2>
-      <p className="muted">Pairs of students flagged together in two or more assignments of this course.</p>
+      <p className="muted">People flagged together in two or more assignments of this course.</p>
       {repeat?.length ? (
         <table>
-          <thead><tr><th>Student 1</th><th>Student 2</th><th>Assignments flagged</th><th>Highest probability</th></tr></thead>
+          <thead><tr><th>Person 1</th><th>Person 2</th><th>Assignments flagged</th><th>Highest probability</th></tr></thead>
           <tbody>
             {repeat.map((r) => (
-              <tr key={`${r.student_1_id}-${r.student_2_id}`}>
-                <td>{r.student_1_roll_no} · {r.student_1_name}</td><td>{r.student_2_roll_no} · {r.student_2_name}</td>
+              <tr key={`${r.person_1_key}-${r.person_2_key}`}>
+                <td>{person(r.student_1_roll_no, r.student_1_name)}</td>
+                <td>{person(r.student_2_roll_no, r.student_2_name)}</td>
                 <td>{r.assignments_flagged}</td><td>{pct(r.highest_probability)}</td>
               </tr>
             ))}
@@ -100,12 +135,14 @@ export function Course() {
         </table>
       ) : <Empty>No repeat pairs.</Empty>}
 
-      <details className="card">
-        <summary>Enrolled students ({students?.length ?? "…"})</summary>
-        <ul className="columns">
-          {students?.map((s) => <li key={s.user_id}>{s.roll_no} · {s.full_name}</li>)}
-        </ul>
-      </details>
+      {students?.length > 0 && (
+        <details className="card">
+          <summary>Enrolled students ({students.length})</summary>
+          <ul className="columns">
+            {students.map((s) => <li key={s.user_id}>{s.roll_no} · {s.full_name}</li>)}
+          </ul>
+        </details>
+      )}
     </section>
   );
 }
@@ -115,25 +152,20 @@ export function Assignment() {
   const navigate = useNavigate();
   const [subs, subsError, reloadSubs] = useApi(`/assignments/${assignmentId}/submissions`);
   const [runs, runsError, reloadRuns] = useApi(`/assignments/${assignmentId}/runs`);
-  const [archive, setArchive] = useState(null);
-  const [upload, setUpload] = useState(null);
   const [threshold, setThreshold] = useState("");
+  const [model] = useApi("/analysis/model");
+  const [search, setSearch] = useState("");
+  const [source, setSource] = useState("");
   const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
 
-  async function send(e) {
-    e.preventDefault();
+  async function remove(s) {
+    if (!window.confirm(`Remove the submission of ${s.full_name}? This cannot be undone.`)) return;
     setError(null);
-    setBusy(true);
-    const data = new FormData();
-    data.append("archive", archive);
     try {
-      setUpload(await api(`/assignments/${assignmentId}/submissions/batch`, { method: "POST", form: data }));
+      await api(`/submissions/${s.submission_id}`, { method: "DELETE" });
       reloadSubs();
     } catch (err) {
       setError(err);
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -154,24 +186,14 @@ export function Assignment() {
     <section>
       <p className="crumbs"><Link to="/courses">My courses</Link></p>
       <h1>Submissions and runs</h1>
-      <div className="two-col">
-        <form className="card" onSubmit={send}>
-          <h2>Upload submissions</h2>
-          <p className="muted">One .zip with a .py file per student, named by roll number (22CS014.py or 22CS014/main.py).</p>
-          <input type="file" accept=".zip" onChange={(e) => setArchive(e.target.files[0] || null)} required />
-          <button className="primary" disabled={busy || !archive}>{busy ? "Uploading…" : "Upload"}</button>
-          {upload && (
-            <div className="result">
-              <p>Accepted {upload.accepted.length}, rejected {upload.rejected.length}, ignored {upload.ignored}.</p>
-              {upload.rejected.length > 0 && (
-                <ul>{upload.rejected.map((r) => <li key={r.file}><code>{r.file}</code>: {r.reason}</li>)}</ul>
-              )}
-            </div>
-          )}
-        </form>
-        <div className="card">
-          <h2>Start a similarity run</h2>
-          <p className="muted">Every pair is scored in the background. A pair is flagged when its copy probability reaches the threshold.</p>
+      <Collect assignmentId={assignmentId} onChange={reloadSubs} />
+      <div className="card">
+        <h2>Analyse</h2>
+        <p className="muted">
+          {subs?.length ?? 0} submissions so far. Every pair is scored in the background; a pair is flagged when its
+          copy probability reaches the threshold. New submissions are not analysed until you start another run.
+        </p>
+        <div className="inline-form">
           <label>
             Threshold (optional, 0.05–0.99; default from the model)
             <input type="number" min="0.05" max="0.99" step="0.01" value={threshold}
@@ -179,6 +201,25 @@ export function Assignment() {
           </label>
           <button className="primary" onClick={startRun} disabled={!subs || subs.length < 2}>Start run</button>
         </div>
+        {model?.operating_points?.length > 0 && (
+          <details>
+            <summary>What does the threshold change?</summary>
+            <p className="muted small">{model.operating_points_note} Lower thresholds catch more partial copies but flag
+              more honest pairs; every flag still waits for your review. Default: {model.default_threshold}.</p>
+            <table>
+              <thead><tr><th>Threshold</th><th>Copies caught</th><th>Partial copies caught</th>
+                <th>False flags per 1,000 honest pairs</th><th>Flags that were real copies</th></tr></thead>
+              <tbody>
+                {model.operating_points.map((p) => (
+                  <tr key={p.threshold} className={p.threshold === model.default_threshold ? "row-default" : ""}>
+                    <td>{p.threshold}</td><td>{pct(p.recall)}</td><td>{pct(p.partial_recall)}</td>
+                    <td>{p.false_positives_per_1000_honest_pairs}</td><td>{pct(p.precision)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        )}
       </div>
       <ErrorNote error={error} />
 
@@ -201,15 +242,27 @@ export function Assignment() {
       </Loading>
 
       <h2>Submissions ({subs?.length ?? "…"})</h2>
+      <div className="filters">
+        <input className="search" type="search" placeholder="Search by name or roll number" value={search}
+               onChange={(e) => setSearch(e.target.value)} aria-label="Search submissions" />
+        <select value={source} onChange={(e) => setSource(e.target.value)} aria-label="Filter by how it arrived">
+          <option value="">All sources</option>
+          {Object.entries(SOURCE_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+      </div>
       <Loading data={subs} error={subsError}>
-        {subs?.length === 0 ? <Empty>Nothing uploaded yet.</Empty> : (
+        {subs?.length === 0 ? <Empty>Nothing yet. Share the form link, upload a ZIP, add files one by one or import a spreadsheet.</Empty> : (
           <table>
-            <thead><tr><th>Roll no.</th><th>Name</th><th>Lines</th><th>Uploaded</th><th>SHA-256</th></tr></thead>
+            <thead><tr><th>Roll no.</th><th>Name</th><th>Source</th><th>Details</th><th>Lines</th><th>Received</th><th>SHA-256</th><th /></tr></thead>
             <tbody>
-              {subs?.map((s) => (
+              {subs?.filter((s) => (!source || s.source === source) && (!search || `${s.roll_no ?? ""} ${s.full_name}`
+                .toLowerCase().includes(search.toLowerCase()))).map((s) => (
                 <tr key={s.submission_id}>
-                  <td>{s.roll_no}</td><td>{s.full_name}</td><td>{s.line_count}</td><td>{when(s.uploaded_at)}</td>
+                  <td>{s.roll_no || "–"}</td><td>{s.full_name}</td><td>{SOURCE_LABEL[s.source] || "–"}</td>
+                  <td><AnswersCell answers={s.answers} /></td><td>{s.line_count}</td><td>{when(s.uploaded_at)}</td>
                   <td><code>{s.file_sha256.slice(0, 12)}…</code></td>
+                  <td>{s.in_a_run ? <small className="muted" title="A run scored it, so it is kept as evidence">in a run</small>
+                    : <button onClick={() => remove(s)}>Remove</button>}</td>
                 </tr>
               ))}
             </tbody>

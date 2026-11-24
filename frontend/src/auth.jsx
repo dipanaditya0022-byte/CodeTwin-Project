@@ -25,6 +25,14 @@ export function AuthProvider({ children }) {
     return res.user;
   }
 
+  // Customer self sign-up (teachers, instructors, organisers); the API signs the new account in straight away.
+  async function signup(details) {
+    const res = await api("/auth/signup", { method: "POST", json: details });
+    setToken(res.access_token);
+    setUser(res.user);
+    return res.user;
+  }
+
   async function logout() {
     try {
       await api("/auth/logout", { method: "POST" });
@@ -34,7 +42,7 @@ export function AuthProvider({ children }) {
     }
   }
 
-  return <AuthContext.Provider value={{ user, ready, login, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, ready, login, signup, logout }}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => useContext(AuthContext);

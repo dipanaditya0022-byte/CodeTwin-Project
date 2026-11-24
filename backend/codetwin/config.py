@@ -13,6 +13,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+DEV_JWT_SECRET = "dev-only-change-me-dev-only-change-me"
 
 
 class Settings(BaseSettings):
@@ -34,10 +35,22 @@ class Settings(BaseSettings):
 
     key_vault_url: str | None = None
 
-    jwt_secret: str = "dev-only-change-me-dev-only-change-me"
+    jwt_secret: str = DEV_JWT_SECRET
     jwt_minutes: int = 30
 
     cors_origins: list[str] = ["http://localhost:5173"]
+
+    # How many reverse proxies in front of the API append to X-Forwarded-For. 0 (local) uses the socket
+    # address; 1 on App Service, whose front end appends the real client address as the last entry.
+    # Entries further left are written by the client and never trusted.
+    trusted_proxy_hops: int = 0
+
+    # largest request body the API reads, for anything that is not a file upload
+    max_json_bytes: int = 256 * 1024
+
+    # a running run whose worker has not reported for this long is marked failed and can be retried
+    run_heartbeat_seconds: int = 20
+    run_stale_seconds: int = 300
 
     # upload limits
     max_archive_bytes: int = 20 * 1024 * 1024
@@ -49,9 +62,28 @@ class Settings(BaseSettings):
     login_max_failures: int = 5
     login_lockout_seconds: int = 900
 
+    # public endpoints (student sign-up, landing-page demo): attempts per client IP per window
+    signup_max_per_hour: int = 5
+    demo_max_per_minute: int = 20
+    demo_max_chars: int = 20_000
+    # public form submissions per client IP per hour; generous because a whole lab often shares one address
+    form_max_per_hour: int = 120
+    # wrong receipt codes per client IP per 15 minutes before the results page locks that address
+    results_max_failures: int = 20
+
     # similarity
     embedder: str = "hashing"          # "hashing" (no download) or "unixcoder"
     model_path: Path | None = None     # defaults to the trained model for the chosen embedder
+
+    @property
+    def is_production(self) -> bool:
+        return self.storage_backend == "azure" or self.database_url.startswith("mssql://")
+
+    def check_secrets(self) -> None:
+        """Refuse to start a production service with the development signing key."""
+        if self.is_production and (self.jwt_secret == DEV_JWT_SECRET or len(self.jwt_secret) < 32):
+            raise RuntimeError("CODETWIN_JWT_SECRET must be set to a random value of at least 32 characters "
+                               "(or stored in Key Vault) before running against Azure")
 
 
 def _load_from_key_vault(settings: Settings) -> Settings:

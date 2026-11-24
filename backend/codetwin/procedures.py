@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from .db import Conn, Database
 
@@ -38,7 +38,7 @@ def _raise_from_mssql(exc: Exception) -> None:
 def save_run_results(db: Database, run_id: int, pairs: list[dict], clusters: list[dict]) -> None:
     """Save every pair, cluster, member and pending review of a run, all or none.
 
-    pairs:    [{"a": 311, "b": 327, "fp": 0.81, "emb": 0.90, "p": 0.94, "doc": "run-42-311-327"}, ...]
+    pairs:    [{"a": 311, "b": 327, "fp": 0.81, "emb": 0.90, "p": 0.94, "doc": "run-42-311-327", "cont": 0.88}, ...]
     clusters: [{"cluster_no": 1, "members": [311, 327, 340]}, ...]
     """
     if db.dialect == "mssql":
@@ -57,9 +57,9 @@ def save_run_results(db: Database, run_id: int, pairs: list[dict], clusters: lis
 
         conn.raw.executemany(
             "INSERT INTO similarity_pairs (run_id, submission_a_id, submission_b_id, fingerprint_score,"
-            " embedding_score, copy_probability, report_doc_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [(run_id, p["a"], p["b"], round(p["fp"], 4), round(p["emb"], 4), round(p["p"], 4), p.get("doc"))
-             for p in pairs],
+            " embedding_score, copy_probability, report_doc_id, containment_score) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [(run_id, p["a"], p["b"], round(p["fp"], 4), round(p["emb"], 4), round(p["p"], 4), p.get("doc"),
+              None if p.get("cont") is None else round(p["cont"], 4)) for p in pairs],
         )
         for cluster in clusters:
             cluster_id = conn.insert("clusters", {"run_id": run_id, "cluster_no": cluster["cluster_no"]}, "cluster_id")
@@ -128,3 +128,33 @@ def write_audit(conn: Conn, actor_id: int | None, action: str, entity: str, enti
         [actor_id, action, entity, entity_id, (old_value or None) and old_value[:400],
          (new_value or None) and new_value[:400], ip],
     )
+
+
+# ---------------------------------------------------------------- run health
+
+STALE_RUN_MESSAGE = ("The analysis worker stopped responding while this run was in progress. "
+                     "Nothing was saved. Retry the run.")
+
+
+def stale_cutoff(stale_seconds: int) -> datetime:
+    return utcnow() - timedelta(seconds=stale_seconds)
+
+
+def expire_stale_runs(conn: Conn, stale_seconds: int, assignment_id: int | None = None) -> list[int]:
+    """Mark failed every running run whose worker has gone quiet, so it can be retried.
+
+    Results are saved all or none, so a run that stopped half way left nothing behind.
+    A run without any heartbeat predates migration 001 and counts as stale.
+    """
+    sql = ("SELECT run_id FROM similarity_runs WHERE status = 'running'"
+           " AND (heartbeat_at IS NULL OR heartbeat_at < ?)")
+    params: list = [stale_cutoff(stale_seconds)]
+    if assignment_id is not None:
+        sql += " AND assignment_id = ?"
+        params.append(assignment_id)
+    expired = [r["run_id"] for r in conn.all(sql, params)]
+    for run_id in expired:
+        conn.execute("UPDATE similarity_runs SET status = 'failed', finished_at = ?, error_message = ?"
+                     " WHERE run_id = ? AND status = 'running'", [utcnow(), STALE_RUN_MESSAGE, run_id])
+        write_audit(conn, None, "run_failed", "similarity_runs", run_id, "running", "worker stopped responding")
+    return expired

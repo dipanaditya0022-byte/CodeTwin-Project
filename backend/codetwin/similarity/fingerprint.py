@@ -4,7 +4,9 @@ Every run of K consecutive normalised tokens is hashed; winnowing keeps
 the smallest hash in each window of W hashes. Any shared run of at least
 W + K - 1 tokens is guaranteed to produce a shared fingerprint. The
 fingerprint score is the Jaccard share of fingerprints two files have in
-common.
+common. The containment score is the share of the smaller file's
+fingerprints found in the other: a copied block inside a larger file
+dilutes Jaccard but not containment.
 
 The same k-gram hashes also give the matched line ranges for the
 side-by-side view (the "explain" step).
@@ -15,7 +17,7 @@ import hashlib
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from .normalize import Tok, normalize
+from .normalize import Tok, normalize_checked
 
 K = 5        # tokens per k-gram
 W = 4        # winnowing window, in hashes
@@ -31,6 +33,7 @@ class Fingerprint:
     tokens: list[Tok]
     hashes: list[int]                     # one per k-gram, in order
     selected: set[int] = field(default_factory=set)   # winnowed fingerprints
+    exact: bool = True                    # False when the file had to be tokenised by the regex fallback
 
 
 def winnow(hashes: list[int], w: int = W) -> set[int]:
@@ -49,10 +52,10 @@ def winnow(hashes: list[int], w: int = W) -> set[int]:
 
 
 def fingerprint(source: str, k: int = K, w: int = W) -> Fingerprint:
-    toks = normalize(source)
+    toks, exact = normalize_checked(source)
     texts = [t.text for t in toks]
     hashes = [_hash(texts[i:i + k]) for i in range(len(texts) - k + 1)]
-    return Fingerprint(toks, hashes, winnow(hashes, w))
+    return Fingerprint(toks, hashes, winnow(hashes, w), exact)
 
 
 def fingerprint_score(a: Fingerprint, b: Fingerprint, exclude: set[int] | None = None) -> float:
@@ -61,6 +64,14 @@ def fingerprint_score(a: Fingerprint, b: Fingerprint, exclude: set[int] | None =
     sb = b.selected - exclude if exclude else b.selected
     union = len(sa | sb)
     return len(sa & sb) / union if union else 0.0
+
+
+def containment_score(a: Fingerprint, b: Fingerprint, exclude: set[int] | None = None) -> float:
+    """Share of the smaller fingerprint set found in the other, ignoring excluded (starter code) hashes."""
+    sa = a.selected - exclude if exclude else a.selected
+    sb = b.selected - exclude if exclude else b.selected
+    smaller = min(len(sa), len(sb))
+    return len(sa & sb) / smaller if smaller else 0.0
 
 
 def matched_regions(a: Fingerprint, b: Fingerprint, k: int = K, min_tokens: int = 2 * K,

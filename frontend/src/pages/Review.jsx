@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, download, pct, when } from "../api.js";
+import { api, download, pct, when, person } from "../api.js";
 import { Empty, ErrorNote, Loading, Status, useApi } from "../ui.jsx";
 
 export default function Review() {
@@ -20,7 +20,10 @@ export default function Review() {
     }
   }
 
-  const roll = (id) => review?.members.find((m) => m.submission_id === id)?.roll_no ?? id;
+  const roll = (id) => {
+    const m = review?.members.find((x) => x.submission_id === id);
+    return m ? (m.roll_no || m.full_name) : id;
+  };
   const opened = review?.history.some((h) => h.new_value === "under_review");
 
   return (
@@ -35,7 +38,7 @@ export default function Review() {
           <div className="two-col">
             <div className="card">
               <h2>Students</h2>
-              <ul>{review.members.map((m) => <li key={m.submission_id}>{m.roll_no} · {m.full_name}</li>)}</ul>
+              <ul>{review.members.map((m) => <li key={m.submission_id}>{person(m.roll_no, m.full_name)}</li>)}</ul>
               <h2>Flagged pairs</h2>
               <table>
                 <thead><tr><th>Pair</th><th>Probability</th><th /></tr></thead>
@@ -77,7 +80,7 @@ export default function Review() {
             <blockquote key={r.response_id} className="card">
               <p>{r.response_text}</p>
               <footer className="muted">
-                {r.roll_no} · {r.full_name} · {when(r.created_at)}
+                {person(r.roll_no, r.full_name)} · {when(r.created_at)}
                 {r.has_evidence === 1 && (
                   <button className="link" onClick={() => download(`/responses/${r.response_id}/evidence`, `evidence-${r.response_id}`)}>
                     Download evidence

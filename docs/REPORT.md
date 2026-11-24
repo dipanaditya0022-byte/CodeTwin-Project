@@ -172,6 +172,37 @@ The classifier responded by giving the embedding a weight of 0.88 against 9.02 f
 
 Lab files are short, so UniXcoder cost grows with the number of files (one forward pass each), not the number of pairs. An App Service B2 has a slower CPU and should still be far under 5 minutes; to be confirmed after deployment.
 
+### 6.7 Update, 24 November: a third score, stricter evaluation, explanations
+
+**Containment score.** Partial copies were the weak spot (57% recall). A copied block inside a larger file dilutes the Jaccard fingerprint score, because the unrelated code enlarges the union. The new score is the share of the *smaller* file's fingerprints found in the other, so padding does not dilute it. Partial copies average 0.58 containment, against 0.11–0.14 for honest pairs.
+
+**Stricter cross-validation.** The headline numbers now come from 5-fold cross-validation **grouped by problem**: every pair about one problem sits in the same fold, so the model is always tested on problems it never saw (section 6.5 named this weakness). Hashing embedder, threshold 0.5, synthetic data:
+
+| | Precision | Recall | Partial-copy recall | False positives (of 735 honest pairs) |
+|---|---|---|---|---|
+| Classifier, fingerprint + embedding (October model) | 1.000 | 0.920 | 0.600 | 0 |
+| **Classifier, + containment (current)** | **1.000** | **0.927** | **0.633** | **0** |
+| Baseline max(fingerprint, embedding) ≥ tuned t | 0.932 | 0.920 | 0.600 | 10 (9 hard negatives) |
+
+The gain is real but small. The 11 partial copies still missed share at most 36% of their source's fingerprints, and honest pairs reach 37.5%, so token overlap cannot separate them without flagging honest work. Rather than pick a lower threshold for the customer, the model now records the measured trade-off. A run's threshold can be chosen with it in view (shown in the app):
+
+| Threshold | Copies caught | Partial copies caught | False flags per 1,000 honest pairs |
+|---|---|---|---|
+| 0.2 | 96.7% | 83.3% | 20.4 |
+| 0.3 | 94.7% | 73.3% | 12.2 |
+| 0.4–0.6 | 92.7% | 63.3% | 0 |
+| 0.8 | 90.0% | 50.0% | 0 |
+
+Learned weights (`hashing-ngram+cont+lr-2026.11.24`): fingerprint 3.97, embedding 1.56, containment 6.05, intercept −4.71. Containment now carries most of the weight.
+
+**Still not measured:**
+* The UniXcoder model has not been retrained with containment. PyTorch was not available where this was done. It keeps working as a two-score model; run `python ml/train.py --embedder unixcoder` where `requirements-ml.txt` is installed.
+* All figures are synthetic. Real-world precision and false-positive rate remain unknown until T1 (section 10.5).
+
+**Explanations.** Each pair now shows how much each score pushed its probability (weight × score on the log-odds scale; the parts add up), and names the main reason. Each run lists files whose scores deserve care: not valid Python (scored with the fallback reader), very little code of its own, nothing left after removing starter code, or mostly starter code. Machine suspicion and human decision are shown as two separate labels. A run's report downloads as CSV (every pair) or as printable HTML (summary, groups and decisions, flagged pairs with matched code side by side, method and limits).
+
+**Reproducibility.** `similarity_pairs.containment_score` (migration 005) stores the third score. Retired models are kept in `backend/codetwin/similarity/models/archive/`, so a run scored by an older model can still be explained.
+
 ## 7. Security controls as built
 
 | Control | Implementation |
