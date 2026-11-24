@@ -40,7 +40,7 @@ jobs:
 
   # Browser tests: the React app, API and worker together in Chromium (frontend/e2e).
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned: Playwright 1.56 installs its system dependencies on this release
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
