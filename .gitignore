@@ -20,3 +20,7 @@ frontend/dist/
 .DS_Store
 .vscode/
 .idea/
+
+# browser test output
+frontend/test-results/
+frontend/playwright-report/

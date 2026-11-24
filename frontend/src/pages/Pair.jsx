@@ -52,13 +52,13 @@ function Explanation({ e }) {
           {e.parts.map((p) => (
             <tr key={p.feature}>
               <td>{p.label}</td><td>{pct(p.score)}</td>
-              <td><span className="bar" style={{ width: `${Math.round((Math.abs(p.contribution) / top) * 100)}%` }} />
+              <td><span className="bar" style={{ width: `${Math.round((Math.abs(p.contribution) / top) * 80)}%` }} />
                 <small className="muted"> {p.contribution.toFixed(2)}</small></td>
             </tr>
           ))}
         </tbody>
       </table>
-      <p className="muted small">The model adds these pushes to a starting value of {e.intercept.toFixed(2)}
+      <p className="muted small">The model adds these pushes to a starting value of {e.intercept.toFixed(2)}{" "}
         and turns the total into the probability. Model <code>{e.model_version}</code>.</p>
     </div>
   );
@@ -97,13 +97,13 @@ export default function Pair() {
             <Link to={`/runs/${pair.run_id}`}>Run #{pair.run_id}</Link> · {pair.assignment_title}
           </p>
           <h1>Compare submissions</h1>
-          <div className="verdicts">
-            <div className={`verdict ${pair.machine.flagged ? "verdict-flag" : ""}`}>
+          <div className="decision-cards">
+            <div className={`decision-card ${pair.machine.flagged ? "decision-card-flag" : ""}`}>
               <small>Software suspicion</small>
               <strong>{pair.machine.flagged ? "Flagged" : "Not flagged"}</strong>
               <span>{pct(pair.copy_probability)} copy probability (flag at {pct(pair.threshold)})</span>
             </div>
-            <div className="verdict">
+            <div className="decision-card">
               <small>Human decision</small>
               <strong>{pair.human.decision ? DECISION[pair.human.decision] : "No review (not flagged)"}</strong>
               {pair.cluster && <Link to={`/reviews/${pair.cluster.review_id}`}>Open group #{pair.cluster.cluster_no}</Link>}

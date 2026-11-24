@@ -8,7 +8,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Azure](https://img.shields.io/badge/Microsoft_Azure-cloud-0078D4?logo=microsoftazure&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-132_passing-2ea44f)
+![Tests](https://img.shields.io/badge/tests-133_API_%2B_6_browser_%2B_SQL_Server-2ea44f)
 ![Status](https://img.shields.io/badge/status-not_yet_deployed-orange)
 
 </div>
@@ -73,7 +73,13 @@ Similarity runs are queued and scored by a separate worker, never inside a web r
 | **Review decision** | **Student view of a flag** |
 | ![Review page with members, responses and decision](docs/screenshots/08-review.png) | ![Student's list of flags on their own submissions](docs/screenshots/09-student-flags.png) |
 
-All 13 screens of the October version are in [docs/screenshots](docs/screenshots). The forms, import, results and platform pages are newer and are not shown yet.
+| **Form, link and QR code** | **Import preview (Google Forms export)** |
+|---|---|
+| ![Form builder with share link, QR code and settings](docs/screenshots/15-form-and-qr.png) | ![Import preview with ready rows and a row without a matching file](docs/screenshots/18-import-preview.png) |
+| **Why a pair was flagged** | **A submitter's own result** |
+| ![Comparison with software suspicion, human decision and the contribution of each score](docs/screenshots/14-explained-compare.png) | ![Result page showing only the submitter's own case](docs/screenshots/17-participant-result.png) |
+
+Every screen is in [docs/screenshots](docs/screenshots). Screenshots 14–19 are taken by the browser tests (`SCREENSHOTS=1 npm run test:e2e`).
 
 ## How detection works
 
@@ -101,12 +107,13 @@ Results on the labelled set (885 pairs; 5-fold cross-validation **grouped by pro
 
 ## Project status
 
-Everything runs end to end locally and is covered by 132 automated tests. Nothing is deployed yet.
+Everything runs end to end locally and is tested three ways, all in CI:
+133 API tests on SQLite, the same suite on SQL Server 2022 (plus T-SQL schema, migration and behaviour checks), and 6 browser tests in Chromium. Nothing is deployed yet.
 
 | Area | Done | Remaining |
 |---|---|---|
-| **Product** | Self-service customers, forms and QR codes, imports, explained results, reports, participant results and responses, admin monitoring | Browser (end-to-end) tests; screenshots of the new pages |
-| **RDBMS** | Schema, 6 migrations, views, procedures and triggers, tested on the SQLite port | Run the T-SQL schema and migrations on SQL Server / Azure SQL |
+| **Product** | Self-service customers, forms and QR codes, imports, explained results, reports, participant results and responses, admin monitoring; browser-tested | — |
+| **RDBMS** | Schema, 6 migrations, views, procedures and triggers, tested on SQL Server 2022 and the SQLite port | Run them on the Azure SQL database once it exists |
 | **ML** | Three-score hashing model, grouped cross-validation, per-threshold trade-offs | Retrain the UniXcoder model with the third score; test on real, approved submissions |
 | **Azure** | Code for every service; setup script in `infra/` | Run the script, deploy, smoke-test, firewall rule, Power BI report |
 | **Security** | Argon2id, short-lived tokens, lockout, ownership checks on every endpoint, receipt codes, upload limits, CSP, proxy-aware rate limits; reviewed for this release | Threat model and security checklist documents |
@@ -122,7 +129,7 @@ Older local databases are migrated automatically at start-up, with a backup of t
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r backend/requirements.txt
 cd backend
-python -m pytest -q                       # 132 tests
+python -m pytest -q                       # 133 tests
 python -m codetwin.cli seed-demo          # demo course: 12 students, two assignments, runs done
 uvicorn codetwin.api.main:app --reload    # API on :8000, interactive docs at /docs
 python -m codetwin.worker                 # second terminal: processes new runs
@@ -132,7 +139,10 @@ python -m codetwin.worker                 # second terminal: processes new runs
 
 ```bash
 cd frontend && npm install && npm run dev # http://localhost:5173
+npx playwright install chromium && npm run test:e2e   # browser tests; they start their own servers and data
 ```
+
+**SQL Server** (Docker): `db/tests/run_sqlserver.sh` checks the T-SQL schema, the migrations and the procedures; `db/tests/run_api_on_sqlserver.sh` runs the whole API suite on SQL Server 2022.
 
 **Demo accounts** (password `codetwin-demo-1`): `admin@demo.edu`, `teacher@demo.edu`, `student1@demo.edu` … `student12@demo.edu`.
 Student 1 has an open flag on Lab 3 with a response; 22CS001 and 22CS002 are a repeat pair.
@@ -196,8 +206,9 @@ backend/codetwin/      one Python package: the API (codetwin.api) and the worker
   similarity/          normalise → fingerprint → embed → classify → cluster → explain
   intake.py            the shared checks and storage for every way code comes in
   results.py           what a person may see about their own case
-backend/tests/         132 pytest tests: API, roles, isolation between customers, privacy, forms, imports, reports
-db/                    codetwin_schema.sql (Azure SQL), schema_sqlite.sql (local port), migrations/
+backend/tests/         133 pytest tests: API, roles, isolation between customers, privacy, forms, imports, reports
+frontend/e2e/          browser tests (Playwright)
+db/                    codetwin_schema.sql (Azure SQL), schema_sqlite.sql (local port), migrations/, tests/ (SQL Server checks)
 ml/                    labelled set, copy generator, training, benchmark, load test, results
 infra/                 az CLI setup script
 docs/                  build report, plans, Power BI guide, architecture diagram, screenshots

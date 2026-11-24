@@ -151,12 +151,12 @@ a.button { display: inline-block; border: 1px solid var(--line); border-radius: 
 .receipt-code code { font-size: 1.5rem; letter-spacing: 0.08em; }
 
 /* explainable results */
-.verdicts { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.8rem; margin: 0.6rem 0 1rem; }
-.verdict { display: flex; flex-direction: column; gap: 0.15rem; border: 1px solid var(--line); border-radius: 8px;
+.decision-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.8rem; margin: 0.6rem 0 1rem; }
+.decision-card { display: flex; flex-direction: column; gap: 0.15rem; border: 1px solid var(--line); border-radius: 8px;
   padding: 0.7rem 0.9rem; background: var(--surface); }
-.verdict small { color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.72rem; }
-.verdict strong { font-size: 1.15rem; }
-.verdict-flag { border-color: var(--danger); background: var(--flag-bg); }
+.decision-card small { color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.72rem; }
+.decision-card strong { font-size: 1.15rem; }
+.decision-card-flag { border-color: var(--danger); background: var(--flag-bg); }
 .explanation .bar { display: inline-block; height: 0.6rem; border-radius: 3px; background: var(--accent);
   vertical-align: middle; min-width: 2px; }
 .note-care { border-left: 4px solid var(--warn); padding: 0.5rem 0.9rem; margin: 0.6rem 0; background: var(--surface); }
@@ -167,3 +167,4 @@ a.button { display: inline-block; border: 1px solid var(--line); border-radius: 
 /* participant and student result views */
 .own-code { max-height: 32rem; overflow: auto; }
 .case { border-top: 1px solid var(--line); padding-top: 0.8rem; margin-top: 0.8rem; }
+label.check { flex-direction: row; align-items: center; gap: 0.45rem; }
