@@ -394,6 +394,11 @@ function Demo() {
                 ? <span className={`verdict ${result.flagged ? "v-flag" : "v-ok"}`}>{result.flagged ? "Would be flagged for review" : "Looks independent"}</span>
                 : <span className="verdict v-idle">{error || "Run a check to see the report"}</span>}
               {result && <span className="verdict-why">{explain(result)}</span>}
+              {result?.notes && Object.keys(result.notes).length > 0 && (
+                <span className="verdict-why demo-care" role="note">
+                  <b>Read with care:</b> {[...new Set(Object.values(result.notes).flat())].join(" ")}
+                </span>
+              )}
             </div>
             <p className="report-sub">Signals</p>
             <EngineRow icon="hash" name="Fingerprint" note="winnowed k-grams" value={result?.fingerprint_score} />

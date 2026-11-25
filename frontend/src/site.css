@@ -486,3 +486,5 @@ label.auth-check input { margin-top: 0.2rem; accent-color: var(--violet); }
   main.auth-main { align-items: flex-start; padding-top: 28px; }
   .auth-card { padding: 26px 20px; }
 }
+
+.demo-care { color: #9a6700; }

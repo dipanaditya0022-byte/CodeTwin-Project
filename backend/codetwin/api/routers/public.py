@@ -17,6 +17,7 @@ from ...security import create_token, hash_password
 from ...similarity.classifier import CopyClassifier, model_path_for
 from ...similarity.embed import cosine_matrix, get_embedder
 from ...similarity.fingerprint import containment_score, fingerprint, fingerprint_score, matched_regions
+from ...similarity.pipeline import file_notes
 from ..deps import client_ip, get_db, get_settings
 from .admin import EMAIL, ROLE_IDS
 from .auth import USER_COLUMNS, LoginOut
@@ -103,4 +104,7 @@ def demo_compare(body: CompareIn, request: Request, settings=Depends(get_setting
         "flagged": p >= classifier.threshold,
         "model_version": classifier.version,
         "matches": matched_regions(fa, fb),
+        # the same "read with care" notes a run gives, so a tiny snippet's high score is not taken at face value
+        "notes": {side: [n["text"] for n in notes] for side, notes in
+                  (("a" if k == 0 else "b", v) for k, v in file_notes({0: fa, 1: fb}, None).items())},
     }

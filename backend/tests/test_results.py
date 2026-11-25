@@ -125,3 +125,12 @@ def test_demo_compare_explains_its_score(client):
     body = r.json()
     assert r.status_code == 200 and body["containment_score"] >= body["fingerprint_score"]
     assert body["explanation"]["main_reason"]
+
+
+def test_demo_compare_warns_that_tiny_snippets_say_little(client):
+    body = client.post("/demo/compare", json={"code_a": "def f(a):\n    return a + 1\n",
+                                              "code_b": "def g(b):\n    return b + 1\n"}).json()
+    assert body["copy_probability"] > 0.5                 # identical structure, so the score is high ...
+    assert body["notes"]["a"] and body["notes"]["b"]      # ... and the page is told it means little
+    full = client.post("/demo/compare", json={"code_a": source("p05_bsearch_a"), "code_b": source("p08_stats_b")}).json()
+    assert full["notes"] == {}

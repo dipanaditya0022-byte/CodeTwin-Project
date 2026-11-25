@@ -10,5 +10,11 @@ export CODETWIN_DATA_DIR="$DIR" CODETWIN_DATABASE_URL="sqlite:///$DIR/e2e.db" CO
 "$PY" -m codetwin.cli seed-demo >/dev/null
 "$PY" -m codetwin.worker &
 WORKER=$!
-trap 'kill $WORKER 2>/dev/null; rm -rf "$DIR"' EXIT
-"$PY" -m uvicorn codetwin.api.main:app --port "${PORT:-8100}"
+"$PY" -m uvicorn codetwin.api.main:app --port "${PORT:-8100}" &
+API=$!
+# When Playwright stops this script, stop both servers at once: otherwise they outlive it and keep
+# the test run waiting on their output.
+stop() { kill "$API" "$WORKER" 2>/dev/null; wait "$API" "$WORKER" 2>/dev/null; rm -rf "$DIR"; }
+trap 'stop; exit 0' TERM INT
+trap stop EXIT
+wait "$API"
