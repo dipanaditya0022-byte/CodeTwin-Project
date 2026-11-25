@@ -168,3 +168,4 @@ a.button { display: inline-block; border: 1px solid var(--line); border-radius: 
 .own-code { max-height: 32rem; overflow: auto; }
 .case { border-top: 1px solid var(--line); padding-top: 0.8rem; margin-top: 0.8rem; }
 label.check { flex-direction: row; align-items: center; gap: 0.45rem; }
+h1 button { font-size: 0.9rem; font-weight: 500; vertical-align: middle; margin-left: 0.6rem; }
