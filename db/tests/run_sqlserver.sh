@@ -4,6 +4,8 @@
 #   2. the October schema (db/tests/october_schema.sql) plus db/migrations/001-006 loads, twice (idempotent)
 #   3. both databases have identical tables, columns, constraints, indexes, views, procedures, triggers
 #   4. db/tests/behaviour.sql passes on both (procedures, triggers, constraints, views)
+#   5. the application's and the report's database users, created as section 7 of the schema says, can
+#      do what they need and nothing more (db/tests/permissions*.sql, run as those users)
 #
 # Needs Docker. On Apple Silicon the image runs under emulation (slower, same results).
 #   db/tests/run_sqlserver.sh            # starts a throwaway container, removes it at the end
@@ -26,7 +28,7 @@ printf 'waiting for SQL Server'
 for _ in $(seq 1 90); do sq -Q "SELECT 1" >/dev/null 2>&1 && break; printf .; sleep 2; done; echo
 
 cp db/tests/october_schema.sql "$WORK/old_schema.sql"
-cp db/codetwin_schema.sql db/tests/behaviour.sql "$WORK/"
+cp db/codetwin_schema.sql db/tests/behaviour.sql db/tests/permissions.sql db/tests/permissions_report.sql "$WORK/"
 for f in db/migrations/0*.sql; do case "$f" in *_sqlite.sql) ;; *) cp "$f" "$WORK/" ;; esac; done
 docker exec "$NAME" mkdir -p /tmp/ct
 docker cp "$WORK/." "$NAME:/tmp/ct/"
@@ -59,4 +61,23 @@ for db in ct_fresh ct_migrated; do
   echo "$out" | grep -E '^(PASS|FAIL|Msg)' | sed "s/^/[$db] /"
   echo "$out" | grep -qE '^(FAIL|Msg)' && failed=1
 done
+# the app user exactly as the schema's section 7 template creates it (contained user, as on Azure SQL)
+APP_PW="Ct9!$(python3 -c 'import secrets; print(secrets.token_urlsafe(18))')"
+grep -E "^-- (CREATE USER codetwin_(app|report)|GRANT .* TO codetwin_(app|report)|DENY .* TO codetwin_(app|report))" db/codetwin_schema.sql \
+  | sed -e 's/^-- //' -e 's/;.*$/;/' -e "s/<from Key Vault>/$APP_PW/" > "$WORK/app_user.sql"
+docker cp "$WORK/app_user.sql" "$NAME:/tmp/ct/app_user.sql"
+sq -Q "EXEC sp_configure 'contained database authentication', 1; RECONFIGURE;" >/dev/null
+sq -Q "ALTER DATABASE ct_fresh SET CONTAINMENT = PARTIAL;" >/dev/null
+step "app and report users created from the schema's permission template" sq -d ct_fresh -i /tmp/ct/app_user.sql
+out=$(docker exec "$NAME" /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U codetwin_app -P "$APP_PW" -d ct_fresh \
+      -i /tmp/ct/permissions.sql 2>&1) || true
+echo "$out" | grep -E '^(PASS|FAIL)' | sed "s/^/[as codetwin_app] /"
+echo "$out" | grep -qE '^FAIL' && failed=1
+echo "$out" | grep -qE '^PASS' || { echo "$out" | tail -5; failed=1; }
+out=$(docker exec "$NAME" /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U codetwin_report -P "$APP_PW" -d ct_fresh \
+      -i /tmp/ct/permissions_report.sql 2>&1) || true
+echo "$out" | grep -E '^(PASS|FAIL)' | sed "s/^/[as codetwin_report] /"
+echo "$out" | grep -qE '^FAIL' && failed=1
+echo "$out" | grep -qE '^PASS' || { echo "$out" | tail -5; failed=1; }
+
 [ "$failed" = 0 ] && echo "ALL SQL SERVER CHECKS PASSED" || { echo "SOME SQL SERVER CHECKS FAILED"; exit 1; }

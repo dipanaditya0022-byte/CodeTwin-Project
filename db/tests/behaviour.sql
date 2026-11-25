@@ -114,4 +114,12 @@ SELECT @n = COUNT(*) FROM dbo.vw_repeat_pairs WHERE course_id = @course AND assi
 EXEC #check 'vw_repeat_pairs finds participants flagged together twice', @n;
 SELECT @n = COUNT(*) FROM dbo.vw_review_status WHERE review_id = @review;
 EXEC #check 'vw_review_status lists the review', @n;
+
+-- 007: reporting views
+SELECT @n = COUNT(*) FROM dbo.vw_run_flag_rate WHERE run_id = @run AND pair_count = 2 AND flagged_pairs = 1
+       AND people_flagged = 2 AND flagged_rate = 0.5 AND is_latest = 1;   -- @run2 never completed, so @run is the latest
+SET @n = IIF(@n = 1, 1, 0); EXEC #check 'vw_run_flag_rate counts pairs, flags and people', @n;
+UPDATE dbo.reviews SET created_at = '2026-11-01T10:59:00', decided_at = '2026-11-01T12:29:00' WHERE review_id = @review;
+SELECT @n = IIF(hours_to_decision = 1.50, 1, 0) FROM dbo.vw_review_status WHERE review_id = @review;
+EXEC #check 'review turnaround is accurate to the minute (90 min = 1.50 h)', @n;
 GO

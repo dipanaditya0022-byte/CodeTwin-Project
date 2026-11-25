@@ -8,7 +8,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Azure](https://img.shields.io/badge/Microsoft_Azure-cloud-0078D4?logo=microsoftazure&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-133_API_%2B_6_browser_%2B_SQL_Server-2ea44f)
+![Tests](https://img.shields.io/badge/tests-136_API_%2B_15_browser_%2B_SQL_Server-2ea44f)
 ![Status](https://img.shields.io/badge/status-not_yet_deployed-orange)
 
 </div>
@@ -60,10 +60,10 @@ Similarity runs are queued and scored by a separate worker, never inside a web r
 | Backend | FastAPI on Azure App Service, 49 endpoints |
 | Background work | Azure Storage Queue and a worker process (same codebase as the API), with a heartbeat so a stuck run can be retried |
 | AI/ML | UniXcoder embeddings and a scikit-learn logistic regression classifier |
-| Relational data | Azure SQL Database: 15 tables in 3NF, 4 views, 2 procedures, 2 triggers, 20 indexes |
+| Relational data | Azure SQL Database: 15 tables in 3NF, 5 views, 2 procedures, 2 triggers, 20 indexes |
 | Files / documents | Azure Blob Storage (source files, stored by content) and Cosmos DB (match reports) |
 | Secrets | Azure Key Vault through managed identity |
-| Analytics | Power BI on three SQL views |
+| Analytics | Power BI on four SQL views, through a read-only user |
 
 ## Screenshots
 
@@ -108,15 +108,15 @@ Results on the labelled set (885 pairs; 5-fold cross-validation **grouped by pro
 ## Project status
 
 Everything runs end to end locally and is tested three ways, all in CI:
-133 API tests on SQLite, the same suite on SQL Server 2022 (plus T-SQL schema, migration and behaviour checks), and 6 browser tests in Chromium. Nothing is deployed yet.
+136 API tests on SQLite, the same suite on SQL Server 2022 (plus T-SQL schema, migration, behaviour and database-permission checks), and 15 browser tests in Chromium. Nothing is deployed yet.
 
 | Area | Done | Remaining |
 |---|---|---|
 | **Product** | Self-service customers, forms and QR codes, imports, explained results, reports, participant results and responses, admin monitoring; browser-tested | — |
-| **RDBMS** | Schema, 6 migrations, views, procedures and triggers, tested on SQL Server 2022 and the SQLite port | Run them on the Azure SQL database once it exists |
+| **RDBMS** | Schema, 7 migrations, 5 views, procedures and triggers, least-privilege database users; all tested on SQL Server 2022 and the SQLite port | Run them on the Azure SQL database once it exists |
 | **ML** | Three-score models for both embedders, grouped cross-validation, per-threshold trade-offs | Test on real, approved submissions |
-| **Azure** | Code for every service; setup script in `infra/` | Run the script, deploy, smoke-test, firewall rule, Power BI report |
-| **Security** | Argon2id, short-lived tokens, lockout, ownership checks on every endpoint, receipt codes, upload limits, CSP, proxy-aware rate limits; reviewed for this release | Threat model and security checklist documents |
+| **Azure** | Code for every service; setup script in `infra/`; Power BI guide for four views | Run the script, deploy, smoke-test, firewall rule, build the Power BI file |
+| **Security** | Argon2id, short-lived tokens, lockout, ownership checks on every endpoint, receipt codes, upload limits, CSP, proxy-aware rate limits; reviewed for this release; [threat model](docs/THREAT_MODEL.md) and [security checklist](docs/SECURITY_CHECKLIST.md) | Penetration test once deployed |
 
 ## Getting started
 
@@ -129,7 +129,7 @@ Older local databases are migrated automatically at start-up, with a backup of t
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r backend/requirements.txt
 cd backend
-python -m pytest -q                       # 133 tests
+python -m pytest -q                       # 136 tests
 python -m codetwin.cli seed-demo          # demo course: 12 students, two assignments, runs done
 uvicorn codetwin.api.main:app --reload    # API on :8000, interactive docs at /docs
 python -m codetwin.worker                 # second terminal: processes new runs
@@ -204,7 +204,7 @@ backend/codetwin/      one Python package: the API (codetwin.api) and the worker
   similarity/          normalise → fingerprint → embed → classify → cluster → explain
   intake.py            the shared checks and storage for every way code comes in
   results.py           what a person may see about their own case
-backend/tests/         133 pytest tests: API, roles, isolation between customers, privacy, forms, imports, reports
+backend/tests/         136 pytest tests: API, roles, isolation between customers, privacy, forms, imports, reports
 frontend/e2e/          browser tests (Playwright)
 db/                    codetwin_schema.sql (Azure SQL), schema_sqlite.sql (local port), migrations/, tests/ (SQL Server checks)
 ml/                    labelled set, copy generator, training, benchmark, load test, results
@@ -217,7 +217,9 @@ docs/                  build report, plans, Power BI guide, architecture diagram
 - [Build report](docs/REPORT.md): status by requirement, results, security controls, testing, remaining work
 - [Customers, participants and migrations](docs/MIGRATION_PLAN.md): account model, data model changes, forms, imports, privacy rules
 - [AI-generated code analysis](docs/AI_ANALYSIS_PLAN.md): why it is not offered, and the test it would have to pass
-- [Power BI guide](docs/POWERBI.md): connecting the report to the three views
+- [Threat model](docs/THREAT_MODEL.md): assets, actors, 20 threats with their controls and tests, accepted risks
+- [Security checklist](docs/SECURITY_CHECKLIST.md): every control, its status and where it is checked
+- [Power BI guide](docs/POWERBI.md): connecting the report to the four views, and keeping names private
 - [Architecture diagram source](docs/diagrams/make_architecture.py): run it to regenerate the SVG
 
 ## Credits

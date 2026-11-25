@@ -1,12 +1,12 @@
 /* =====================================================================
    CodeTwin - schema script
    Target : Azure SQL Database (T-SQL)
-   Version: 1.2, 24 November 2026 (includes migrations 001-006)
+   Version: 1.2, 24 November 2026 (includes migrations 001-007)
 
    Contents
      1. Tables (15, third normal form) with keys and constraints
      2. Indexes on searched columns
-     3. Views (4)
+     3. Views (5)
      4. Stored procedures (2, each one a transaction)
      5. Triggers (2)
      6. Seed data
@@ -419,12 +419,42 @@ SELECT
     rv.decision,
     rv.created_at,
     rv.decided_at,
-    DATEDIFF(HOUR, rv.created_at, rv.decided_at) AS hours_to_decision
+    -- minutes / 60, not DATEDIFF(HOUR): that counts hour boundaries, so 10:59 -> 11:01 was "1 hour"
+    CAST(DATEDIFF(MINUTE, rv.created_at, rv.decided_at) / 60.0 AS DECIMAL(9,2)) AS hours_to_decision
 FROM dbo.reviews          AS rv
 JOIN dbo.clusters         AS cl ON cl.cluster_id   = rv.cluster_id
 JOIN dbo.similarity_runs  AS r  ON r.run_id        = cl.run_id
 JOIN dbo.assignments      AS a  ON a.assignment_id = r.assignment_id
 JOIN dbo.courses          AS c  ON c.course_id     = a.course_id;
+GO
+
+-- 3.4 One row per completed run: how many pairs and people were flagged, for the flagged-rate page in Power BI.
+--     is_latest marks each assignment's most recent completed run, so a report can show one figure per assignment.
+CREATE OR ALTER VIEW dbo.vw_run_flag_rate
+AS
+SELECT
+    c.course_id,
+    c.course_code,
+    a.assignment_id,
+    a.title AS assignment_title,
+    r.run_id,
+    r.finished_at,
+    r.threshold,
+    (SELECT COUNT(*) FROM dbo.similarity_pairs AS p WHERE p.run_id = r.run_id) AS pair_count,
+    (SELECT COUNT(*) FROM dbo.similarity_pairs AS p WHERE p.run_id = r.run_id AND p.copy_probability >= r.threshold)
+        AS flagged_pairs,
+    CAST((SELECT COUNT(*) FROM dbo.similarity_pairs AS p WHERE p.run_id = r.run_id AND p.copy_probability >= r.threshold)
+         * 1.0 / NULLIF((SELECT COUNT(*) FROM dbo.similarity_pairs AS p WHERE p.run_id = r.run_id), 0)
+         AS DECIMAL(7,4)) AS flagged_rate,
+    (SELECT COUNT(DISTINCT m.submission_id) FROM dbo.cluster_members AS m JOIN dbo.clusters AS cl
+        ON cl.cluster_id = m.cluster_id WHERE cl.run_id = r.run_id) AS people_flagged,
+    CASE WHEN r.run_id = (SELECT MAX(r2.run_id) FROM dbo.similarity_runs AS r2
+                          WHERE r2.assignment_id = r.assignment_id AND r2.status = 'completed')
+         THEN 1 ELSE 0 END AS is_latest
+FROM dbo.similarity_runs AS r
+JOIN dbo.assignments     AS a ON a.assignment_id = r.assignment_id
+JOIN dbo.courses         AS c ON c.course_id     = a.course_id
+WHERE r.status = 'completed';
 GO
 
 /* ---------------------------------------------------------------------
@@ -626,13 +656,17 @@ GO
 
 -- CREATE USER codetwin_app WITH PASSWORD = '<from Key Vault>';
 -- GRANT SELECT, INSERT, UPDATE ON SCHEMA::dbo TO codetwin_app;
+-- GRANT DELETE ON dbo.submissions                TO codetwin_app;   -- removing a submission no run has scored
 -- GRANT EXECUTE ON dbo.usp_save_run_results       TO codetwin_app;
 -- GRANT EXECUTE ON dbo.usp_record_review_decision TO codetwin_app;
 -- DENY  UPDATE, DELETE ON dbo.audit_log           TO codetwin_app;
+-- DENY  UPDATE ON dbo.reviews                    TO codetwin_app;   -- decisions only through usp_record_review_decision,
+--                                                                   which checks the teacher owns the course
 -- DENY  ALTER ON SCHEMA::dbo                      TO codetwin_app;   -- cannot disable the triggers
 
 -- CREATE USER codetwin_report WITH PASSWORD = '<from Key Vault>';
 -- GRANT SELECT ON dbo.vw_suspicious_pairs TO codetwin_report;
 -- GRANT SELECT ON dbo.vw_repeat_pairs     TO codetwin_report;
 -- GRANT SELECT ON dbo.vw_review_status    TO codetwin_report;
+-- GRANT SELECT ON dbo.vw_run_flag_rate    TO codetwin_report;
 -- (vw_submission_people needs no grant: the views above reach it through ownership chaining)

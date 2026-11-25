@@ -173,6 +173,8 @@ def _migrate_sqlite(raw, path: str) -> None:
         _rebuild(raw, path, "004_forms_sqlite.sql", "submissions")   # additive; same checks and backup
     if "participant_id" not in _columns(raw, "responses"):
         _rebuild(raw, path, "006_participant_results_sqlite.sql", "responses")
+    if not raw.execute("SELECT 1 FROM sqlite_master WHERE type = 'view' AND name = 'vw_run_flag_rate'").fetchone():
+        _rebuild(raw, path, "007_reporting_views_sqlite.sql", "reviews")   # views only; same checks and backup
 
 
 def _only_comments(sql: str) -> bool:

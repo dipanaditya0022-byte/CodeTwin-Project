@@ -419,3 +419,23 @@ def test_power_bi_views(world, client, finished_run, app):
     assert {suspicious[0]["student_a_roll_no"], suspicious[0]["student_b_roll_no"]} == {"R001", "R002"}
     assert status[0]["decision"] == "cleared" and status[0]["member_count"] == 2
     assert status[0]["hours_to_decision"] == 0
+
+
+def test_flag_rate_view_counts_pairs_and_people_per_run(world, client, finished_run, app):
+    a, run_id = finished_run
+    with app.state.db.connect() as conn:
+        row = conn.one("SELECT * FROM vw_run_flag_rate WHERE run_id = ?", [run_id])
+    assert row["pair_count"] == 6 and row["flagged_pairs"] == 1 and row["people_flagged"] == 2
+    assert abs(row["flagged_rate"] - 1 / 6) < 1e-3 and row["is_latest"] == 1
+
+
+def test_review_turnaround_is_accurate_to_the_minute(world, client, finished_run, app):
+    _, run_id = finished_run
+    review_id = client.get(f"/runs/{run_id}/clusters", headers=world.teacher).json()[0]["review_id"]
+    client.put(f"/reviews/{review_id}", headers=world.teacher, json={"decision": "cleared", "reason": "Fine"})
+    with app.state.db.transaction() as conn:   # decided 90 minutes after the flag
+        conn.execute("UPDATE reviews SET created_at = '2026-11-01 10:59:00', decided_at = '2026-11-01 12:29:00'"
+                     " WHERE review_id = ?", [review_id])
+    with app.state.db.connect() as conn:
+        hours = conn.scalar("SELECT hours_to_decision FROM vw_review_status WHERE review_id = ?", [review_id])
+    assert abs(float(hours) - 1.5) < 1e-9

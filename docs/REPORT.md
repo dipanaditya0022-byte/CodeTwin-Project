@@ -263,6 +263,28 @@ A 60-file run takes 3.5 s and a 120-file run 5.8 s on the laptop CPU (`ml/benchm
 
 Everything below is planned for completion within a week. All application features are built and tested locally. What remains is mostly moving the system to Azure, proving the database objects there, and the reporting and security documents.
 
+**Status on 25 November.** Everything that does not need an Azure subscription or approval to use real submissions is done:
+
+| Item | Status |
+|---|---|
+| A1–A5 Azure deployment | Open: needs a subscription and the go-ahead to create paid resources |
+| D1 Schema on SQL Server | Done on SQL Server 2022 (`db/tests/run_sqlserver.sh`); on Azure SQL once it exists |
+| D2 App and report users, `DENY UPDATE ON dbo.reviews` | Done, and tested *as those users*. It also found that the app user needed `DELETE` on `submissions` for removing an unscored submission, now granted |
+| D3 T-SQL path exercised | Done on SQL Server: procedures, error 50011, triggers, append-only log, all-or-none save (26 checks) |
+| D4 API tests on SQL Server in CI | Done: the whole suite runs on SQL Server 2022 on every push. It found three defects, all fixed (a comment that stopped the schema loading, a missing `QUOTED_IDENTIFIER` in migrations, finish times rounded before start times) |
+| D5 Accurate turnaround | Done: minutes / 60 in `vw_review_status` (migration 007) |
+| P1 Power BI file | Open: needs the Azure SQL database and Power BI Desktop (Windows); guide updated in `docs/POWERBI.md` |
+| P2 Flagged rate per assignment | Done: `vw_run_flag_rate` (migration 007) |
+| S1–S2 Firewall, HTTPS | In the setup script; take effect on deployment |
+| S3 Threat model | Done: `docs/THREAT_MODEL.md` |
+| S4 Security checklist | Done: `docs/SECURITY_CHECKLIST.md` |
+| S5 Shared revocation and lockout | Open, only needed before running more than one API instance |
+| T1 Real submissions | Open: needs approval and anonymised data |
+| T2 Frontend tests | Done: 15 browser tests (Playwright) in CI |
+| T3 Load test | Done locally: 100 concurrent users, 95th percentile under 1.5 s (`ml/load_test.py`); to repeat on Azure |
+| Admin: deactivate users | Done: suspend and restore |
+| Design document changes (section 12) | Recorded in this report and `docs/MIGRATION_PLAN.md` |
+
 ### 10.1 Azure deployment
 
 | # | Task | Done when |
