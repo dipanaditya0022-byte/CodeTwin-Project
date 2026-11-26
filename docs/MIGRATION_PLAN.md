@@ -125,6 +125,7 @@ Wrong codes count towards a lockout of the network address (20 per 15 minutes, `
 
 ## Not done yet (later phases)
 
+* Linking one person across different identifiers: a participant identified by email (a form) and the same person identified by name (a ZIP named by people) are two records, so their repeat pairs are not joined. Today the fix is to use the same identifying field throughout a course; a later version could let the owner merge two records
 * AI-generated-code analysis: deliberately not offered; see [AI_ANALYSIS_PLAN.md](AI_ANALYSIS_PLAN.md) for the evidence, constraints and the test it would have to pass
 * Private result links for participants, and participant responses (phase 7). Until then, reviews of participant clusters are decided by the customer without a response.
 * Organisation accounts with several customers sharing courses
