@@ -214,9 +214,9 @@ function Gauge({ value }) {
       <svg viewBox="0 0 120 70" aria-hidden="true">
         <defs>
           <linearGradient id="gauge-grad" x1="0" x2="1">
-            <stop offset="0" stopColor="#14b8a6" />
-            <stop offset="0.5" stopColor="#f59e0b" />
-            <stop offset="1" stopColor="#e5484d" />
+            <stop offset="0" stopColor="#2f7d4f" />
+            <stop offset="0.5" stopColor="#b7791f" />
+            <stop offset="1" stopColor="#c0392b" />
           </linearGradient>
         </defs>
         <path d="M10 62 A50 50 0 0 1 110 62" className="semi-track" pathLength="100" />
@@ -601,7 +601,7 @@ export default function Landing() {
       <SiteHeader />
 
       <section className="hero">
-        <div className="hero-bg" aria-hidden="true"><span className="blob b-violet" /><span className="blob b-teal" /></div>
+        <div className="hero-bg" aria-hidden="true" />
         <div className="site-wrap">
           <a href="#pipeline" className="hero-chip"><span className="live" />Free demo · two methods + a trained classifier<Icon name="arrow" size={14} /></a>
           <h1>Catch copied code.<br /><span className="grad">Review it fairly.</span></h1>

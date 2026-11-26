@@ -5,19 +5,11 @@ import { Link, useLocation } from "react-router-dom";
 export function LogoMark({ size = 36 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 36 36" aria-hidden="true" className="logo-mark">
-      <defs>
-        <linearGradient id="ct-logo" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#6d5cff" />
-          <stop offset="0.6" stopColor="#8b5cf6" />
-          <stop offset="1" stopColor="#14b8a6" />
-        </linearGradient>
-      </defs>
-      <rect width="36" height="36" rx="10" fill="url(#ct-logo)" />
-      {/* two overlapping code brackets: a submission and its twin */}
+      <rect width="36" height="36" rx="7" fill="#1b2430" />
+      {/* two code brackets around a highlighted mark: a submission and its twin */}
       <path d="M14 11l-6 7 6 7" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M22 11l6 7-6 7" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="15.5" cy="18" r="2" fill="#c4b5fd" />
-      <circle cx="20.5" cy="18" r="2" fill="#fff" />
+      <rect x="15" y="15.5" width="6" height="5" rx="1" fill="#ffe066" />
     </svg>
   );
 }

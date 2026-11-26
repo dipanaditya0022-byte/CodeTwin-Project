@@ -80,7 +80,7 @@ export default function Login() {
         </button>
       </form>
       <p className="auth-switch">New to CodeTwin? <Link to="/signup">Create an account</Link></p>
-      <p className="auth-fine">Teacher and administrator accounts are created by your institution's administrator.</p>
+      <p className="auth-fine">Students get their login from their college; submitters through a form need no account.</p>
     </AuthLayout>
   );
 }
