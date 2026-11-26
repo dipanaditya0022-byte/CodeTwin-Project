@@ -214,6 +214,7 @@ docs/                  build report, plans, Power BI guide, architecture diagram
 
 ## Documentation
 
+- [Demo guide](docs/DEMO_GUIDE.md): showing the whole flow step by step (in Hinglish), with the demo files in [docs/demo-kit](docs/demo-kit)
 - [Build report](docs/REPORT.md): status by requirement, results, security controls, testing, remaining work
 - [Customers, participants and migrations](docs/MIGRATION_PLAN.md): account model, data model changes, forms, imports, privacy rules
 - [AI-generated code analysis](docs/AI_ANALYSIS_PLAN.md): why it is not offered, and the test it would have to pass

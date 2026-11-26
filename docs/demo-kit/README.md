@@ -1,5 +1,7 @@
 # Demo kit
 
+Step-by-step script for using these files: [DEMO_GUIDE.md](../DEMO_GUIDE.md).
+
 Files for showing CodeTwin from start to finish. All code is from the project's labelled set (`ml/data`);
 the people are made up.
 
