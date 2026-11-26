@@ -2,6 +2,8 @@
 
 Sir ya kisi ko bhi CodeTwin ka poora flow dikhane ke liye: pehle project ka idea, phir tayaari, phir har step par **kya click karna hai, kya bolna hai, aur screen par kya dikhega.** Poora demo lagbhag 12 minute ka hai.
 
+**Is guide mein:** [Presentation ke 7 hisse](#presentation-ke-7-hisse-kya-taiyaar-rakhna-hai) · [Tech stack aur kyun](#tech-stack-aur-kyun-use-kiya) · [Tayaari](#part-1-demo-se-10-minute-pehle-tayaari) · [Demo ke 12 steps](#part-2-demo-ke-12-steps) · [Login](#login-ka-saar-ek-nazar-mein) · [Sawaal-jawab](#sawaal-aur-chhote-jawab) · [Gadbad ho toh](#agar-kuch-gadbad-ho)
+
 **Saath mein kaam aane wale links**
 
 | Kya | Link |
@@ -30,6 +32,222 @@ CodeTwin teen kaam karta hai:
 1. **Code collect karta hai:** form link / QR code, ZIP upload, ya Google Forms import se.
 2. **Har pair compare karta hai:** names hata kar structure dekhta hai, aur batata hai kaun se pair copy lagte hain, aur **kyun**.
 3. **Fair review karata hai:** student ko apni baat rakhne ka mauka milta hai, teacher reason ke saath decision leta hai, aur sab record hota hai.
+
+---
+
+## Presentation ke 7 hisse: kya taiyaar rakhna hai
+
+Presentation mein in 7 cheezon par dhyan diya jaayega. Har hisse ke liye: kya bolna/dikhana hai, aur uska jawab project mein kahan hai.
+
+### ⓵ Project Idea: problem aur solution
+
+**Problem:** 60 students ki lab mein 1,770 pairs bante hain, haath se compare nahi ho sakte. Variable names badalne se copy chhup jaati hai. Aur jo tools copy dhoondhte bhi hain (MOSS, JPlag, Dolos), wo uske baad ka kaam nahi karte: student ki baat sunna, reason ke saath faisla, record rakhna.
+
+**Solution:** CodeTwin poora workflow sambhalta hai:
+
+> Code collect karo → analyse karo → saboot dikhao → case review karo → faisla record karo → har insaan ko sirf apna result dikhao
+
+**Kya alag hai:** samjhaya hua flag ("Why this score"), student ka jawab, teacher ka reason ke saath faisla, repeat pairs, audit log jo edit nahi ho sakta, aur bina account ke submission (form / QR code).
+
+**Kahan hai:** [README](../README.md), [REPORT.md section 1](REPORT.md), original design document.
+
+### ⓶ Design: architecture, flowcharts, UI/UX
+
+**System architecture.** Browser kabhi seedha database tak nahi jaata. Har request API se hoke jaati hai, jo role aur ownership check karti hai. Bhaari comparison ek alag worker karta hai, queue ke through.
+
+```mermaid
+flowchart LR
+    B[Browser<br/>teacher / student / admin] --> R[React app<br/>Static Web Apps]
+    R -->|HTTPS + token| A[FastAPI service<br/>auth, roles, validation]
+    A --> K[Key Vault<br/>secrets]
+    A --> S[(Azure SQL<br/>15 tables)]
+    A --> BL[(Blob Storage<br/>code files)]
+    A --> C[(Cosmos DB<br/>match reports)]
+    A -->|run job| Q[Storage Queue]
+    Q --> W[Similarity worker<br/>score, classify, cluster]
+    W --> S
+    W --> BL
+    W --> C
+    S --> P[Power BI<br/>4 views]
+```
+
+Poster jaisi diagram: [docs/diagrams/architecture-3d.svg](diagrams/architecture-3d.svg).
+
+**User flow (flowchart):**
+
+```mermaid
+flowchart TD
+    T[Teacher signs up] --> C[Course + assignment]
+    C --> F{Code kaise aayega?}
+    F -->|Form / QR code| S1[Students submit, receipt code milta hai]
+    F -->|ZIP upload| S2[Files naam ya roll number se match]
+    F -->|Google Forms import| S3[Preview, phir sirf sahi rows]
+    F -->|Ek file| S4[Teacher khud add karta hai]
+    S1 & S2 & S3 & S4 --> R[Start run]
+    R --> W[Worker: har pair ke 3 score + probability]
+    W --> G[Flagged pairs ke groups = cases]
+    G --> V[Teacher evidence dekhta hai: side by side, Why this score]
+    V --> D{Case kholna hai?}
+    D -->|Honest look-alike| CL[Clear, student ko kuch nahi dikhta]
+    D -->|Open| O[Student apna result dekhta hai aur ek baar jawab deta hai]
+    O --> DEC[Teacher reason ke saath Clear / Confirm]
+    DEC --> AU[Audit log + report download]
+```
+
+**Similarity pipeline:**
+
+```mermaid
+flowchart LR
+    N[Normalise<br/>names → ID, values → LIT] --> FP[Fingerprint<br/>5-token hashes, winnowing]
+    N --> EM[Embed<br/>UniXcoder vector]
+    FP --> S1[Shared fragments]
+    FP --> S2[Containment]
+    EM --> S3[Structure]
+    S1 & S2 & S3 --> CLF[Logistic regression<br/>copy probability]
+    CLF --> CL[Cluster flagged pairs]
+    CL --> EX[Explain: matched lines + notes]
+```
+
+**UI/UX:** "paper aur ink" design, jaise examiner ki desk: answer-sheet jaisa kaagaz, blue-black ink, buttons ke liye ballpoint blue, laal sirf flag ke liye, aur milte code ke liye highlighter peela. Har screen par loading, empty aur error states hain; phone par form aur result page theek dikhte hain. Saari screens: [gallery](https://claude.ai/artifact/3HH8w87SHWnqbGxDSVzKgP), [docs/screenshots](screenshots/).
+
+**Database design:** 15 tables (3NF), 5 views, 2 stored procedures, 2 triggers. [db/codetwin_schema.sql](../db/codetwin_schema.sql), [REPORT.md section 5](REPORT.md), [MIGRATION_PLAN.md](MIGRATION_PLAN.md).
+
+### ⓷ Implementation: technologies aur kaise bana
+
+Technologies aur unhe kyun chuna: neeche **[Tech stack aur kyun use kiya](#tech-stack-aur-kyun-use-kiya)** section dekho.
+
+**Kaise bana (order mein):**
+1. Design document: requirements (FR1–FR11), architecture, database, security.
+2. Database schema aur login, roles.
+3. Upload, fingerprint similarity, side-by-side view.
+4. Embeddings, classifier training, clustering, review flow, audit log.
+5. Self-service: customers, forms + QR code, imports, participant results.
+6. Testing: API tests, SQL Server tests, browser tests, load test, security review.
+
+**Local vs Azure:** laptop par SQLite aur folders, Azure SQL, Blob, Cosmos aur Queue ki jagah lete hain. Ek hi code dono par chalta hai ([stores.py](../backend/codetwin/stores.py), [db.py](../backend/codetwin/db.py)). Isliye poora system bina Azure ke chalta aur test hota hai.
+
+### ⓸ Functionality: saare features ka demo
+
+Ye neeche ke **Part 2 (12 steps)** mein hai. Har key module cover hota hai:
+
+| Module | Demo step |
+|---|---|
+| Live similarity check | Step 2 |
+| Sign up, login, roles | Steps 3, 12 |
+| Courses, assignments | Step 4 |
+| Form, QR code, receipt code | Step 5 |
+| Analysis, scores, explanation | Step 6 |
+| Student ka apna result aur jawab | Step 7 |
+| Review, faisla, audit log | Step 8 |
+| Report download | Step 9 |
+| ZIP upload, repeat pairs | Step 10 |
+| Google Forms import | Step 11 |
+| College flow, admin dashboard | Step 12 |
+
+### ⓹ Code Quality: code, logic, practices
+
+**Code kahan kya hai (ye files samajh kar jao):**
+
+| Hissa | File | Kya karti hai |
+|---|---|---|
+| Normalise | [similarity/normalize.py](../backend/codetwin/similarity/normalize.py) | Code ko tokens mein todna, names/values ko placeholder banana |
+| Fingerprint | [similarity/fingerprint.py](../backend/codetwin/similarity/fingerprint.py) | 5-token hashes, winnowing, shared fragments aur containment score, matched lines |
+| Embedding | [similarity/embed.py](../backend/codetwin/similarity/embed.py) | UniXcoder (ya hashing) se code ka vector |
+| Classifier | [similarity/classifier.py](../backend/codetwin/similarity/classifier.py) | 3 score → probability, aur "Why this score" |
+| Pipeline | [similarity/pipeline.py](../backend/codetwin/similarity/pipeline.py) | Poori run: har pair, cluster, file notes |
+| Worker | [worker.py](../backend/codetwin/worker.py) | Queue se run uthana, heartbeat, results save |
+| Login, security | [security.py](../backend/codetwin/security.py), [api/deps.py](../backend/codetwin/api/deps.py) | Password hash, token, har request par role + ownership check |
+| Code aana | [intake.py](../backend/codetwin/intake.py), [routers/forms.py](../backend/codetwin/api/routers/forms.py), [routers/imports.py](../backend/codetwin/api/routers/imports.py) | File check, receipt code, form, Google Forms import |
+| Privacy | [results.py](../backend/codetwin/results.py), [routers/participant.py](../backend/codetwin/api/routers/participant.py) | Har insaan ko sirf apna result |
+| Reports | [routers/reports.py](../backend/codetwin/api/routers/reports.py) | CSV aur HTML report |
+| Training | [ml/train.py](../ml/train.py) | Classifier train aur evaluate |
+| Frontend | [frontend/src/pages/](../frontend/src/pages/) | Saari screens (React) |
+
+**Practices jo follow ki:**
+- Har SQL query mein parameters, kabhi string jod kar SQL nahi (SQL injection se bachav).
+- Password Argon2id se hash; plain password kabhi save nahi hota.
+- Upload kiya code kabhi run nahi hota, sirf padha jaata hai.
+- Har feature ke tests: 136 API tests, wahi SQL Server par, 15 browser tests; har GitHub push par apne aap chalte hain ([.github/workflows/ci.yml](../.github/workflows/ci.yml)).
+- Har file ke upar docstring: wo file kya karti hai aur kyun.
+- Database changes migration scripts se, backup ke saath ([db/migrations](../db/migrations)).
+
+### ⓺ Documentation
+
+| Document | Kya hai |
+|---|---|
+| [README.md](../README.md) | Overview, features, setup (installation guide) |
+| [REPORT.md](REPORT.md) | Project report: requirements status, architecture, ML results, security, testing |
+| [DEMO_GUIDE.md](DEMO_GUIDE.md) (ye file) | User manual jaisa: har screen kaise use karein, step by step |
+| [MIGRATION_PLAN.md](MIGRATION_PLAN.md) | Technical: accounts, forms, imports, database changes |
+| [THREAT_MODEL.md](THREAT_MODEL.md), [SECURITY_CHECKLIST.md](SECURITY_CHECKLIST.md) | Security documentation |
+| [AI_ANALYSIS_PLAN.md](AI_ANALYSIS_PLAN.md) | AI-code detection kyun nahi kiya, aur test plan |
+| [POWERBI.md](POWERBI.md) | Analytics report setup |
+| [db/codetwin_schema.sql](../db/codetwin_schema.sql) | Database script, comments ke saath |
+| Design document (PDF) | Original design: requirements, architecture, API list |
+
+### ⓻ Viva Voce
+
+Neeche **[Sawaal aur chhote jawab](#sawaal-aur-chhote-jawab)** mein project ke sawaal hain. Technologies ke sawaal ke liye **[Tech stack](#tech-stack-aur-kyun-use-kiya)** section ka "kyun" column padho. Sabse zaroori: har jawab apne shabdon mein dena, aur jo nahi pata, wo seedha bol dena.
+
+---
+
+## Tech stack aur kyun use kiya
+
+### Frontend (jo browser mein dikhta hai)
+
+| Technology | Version | Kaam | Kyun chuni |
+|---|---|---|---|
+| **React** | 18.3.1 | Saari screens | Components se UI banana aasaan; text ko apne aap escape karta hai, isliye XSS (script injection) se bachav; sabse zyada use hone wali library |
+| **Vite** | 5.4.8 | Development server aur build | Bahut tez start aur reload; simple config |
+| **React Router** | 6.26.2 | Pages ke beech navigation | React ke saath standard |
+| **qrcode** | 1.5.4 | Form ka QR code | QR browser mein hi banta hai, link kisi bahar ki service ko nahi jaata |
+| **IBM Plex Sans / Mono** | 5.2.6 | Font | Saaf, engineering jaisa look; self-hosted, koi bahar ka font server nahi |
+
+### Backend (server)
+
+| Technology | Version | Kaam | Kyun chuni |
+|---|---|---|---|
+| **Python** | 3.12 | Poora backend aur ML | Python ka apna `tokenize` module code ko sahi tokens mein todta hai; ML libraries Python mein hain, toh ek hi language |
+| **FastAPI** | 0.162.0 | REST API (49 endpoints) | Tez; input validation apne aap (Pydantic); `/docs` par API documentation apne aap banti hai |
+| **Uvicorn** | 0.54.0 | API server chalana | FastAPI ke liye standard server |
+| **Pydantic Settings** | 2.16.2 | Settings, environment variables se | Secrets code mein nahi, environment/Key Vault se aate hain |
+| **argon2-cffi** | 25.1.0 | Password hashing | Argon2id aaj ka recommended password hash hai, brute force ke liye mehenga |
+| **PyJWT** | 2.15.1 | Login token | Chhote, signed token; har request par check |
+| **openpyxl** | 3.1.5 | Google Forms .xlsx padhna | Sirf values padhta hai, formulas kabhi nahi chalata (safe) |
+
+**Separate worker kyun?** Pairs n(n−1)/2 se badhte hain: 60 files = 1,770 pairs, 120 files = 7,140. Agar ye web request ke andar hota toh page atak jaata ya timeout hota. Isliye API sirf job queue mein daalti hai aur worker background mein karta hai.
+
+### AI / ML
+
+| Technology | Version | Kaam | Kyun chuni |
+|---|---|---|---|
+| **Winnowing fingerprints** | (apna code) | Same code ke tukde dhoondhna | MOSS wali proven technique; renamed variables ke baad bhi kaam karti hai |
+| **UniXcoder** (microsoft/unixcoder-base) | via Transformers 5.21.0, PyTorch 2.15.0 | Code ka structure samajhna (embedding) | Code ke liye bana open-source model; worker ke andar chalta hai, isliye students ka code kisi bahar ki AI service ko nahi jaata |
+| **scikit-learn** (logistic regression) | 1.9.1 | 3 score → copy probability | Kam data mein theek, tez, aur iske 3 weights har faisle ko explain karte hain; deep learning chhote data ko ratta maar leti |
+| **NumPy** | 2.5.4 | Vectors aur scores ka hisaab | Standard aur tez |
+
+### Database aur storage
+
+| Technology | Kaam | Kyun chuni |
+|---|---|---|
+| **Azure SQL Database** | Users, courses, submissions, runs, reviews, audit log | Data structured hai aur tables aapas mein jude hain; transactions chahiye (results all-or-nothing save) |
+| **SQLite** | Laptop par wahi database | Bina server ke chalta hai; same schema, toh local testing aasaan |
+| **Azure Blob Storage** | Code files, evidence | Files ke liye bana; private container, sirf API ke through |
+| **Azure Cosmos DB** | Har flagged pair ki match report (JSON) | Report ka shape har pair mein alag hota hai aur poori report ek saath padhi jaati hai, toh document store sahi hai |
+| **Azure Storage Queue** | Run ke jobs | Simple, sasta; worker message uthata hai, fail ho toh message wapas aa jaata hai |
+| **Azure Key Vault** | Secrets (DB password, signing key) | Secrets code ya repo mein nahi; app managed identity se padhti hai |
+
+### Cloud, analytics aur testing
+
+| Technology | Kaam | Kyun chuni |
+|---|---|---|
+| **Azure App Service** | API aur worker host karna | Managed: HTTPS, scaling, health check apne aap |
+| **Azure Static Web Apps** | React site host karna | Static site ke liye sasta aur tez; security headers config se |
+| **Power BI** | Analytics report (flagged rate, review time, repeat pairs) | Azure SQL se seedha judta hai; read-only user sirf 4 views padhta hai |
+| **pytest** (9.2.0) | Backend tests | Python ka standard test tool |
+| **Playwright** (1.56.1) | Browser tests | Asli Chrome mein app ko click karke test karta hai |
+| **Docker + SQL Server 2022** | Azure SQL wale scripts ka test | Bina Azure ke asli SQL Server par schema, procedures aur permissions test |
+| **GitHub Actions** | Har push par saare tests | Galti `main` tak pahunchne se pehle pakdi jaati hai |
 
 ---
 
