@@ -18,6 +18,20 @@ Tools such as MOSS, JPlag and Dolos detect similar code. CodeTwin covers the who
 
 **collect code → analyse → show the evidence → review the case → record a decision → tell each person their own result.**
 
+## Presentation and report
+
+| What | Where |
+|---|---|
+| Presentation, online (8 slides: idea, security, implementation, functionality, code quality, documentation) | [CodeTwin Presentation](https://claude.ai/artifact/VgK9kwdzvW8aE39CpZd8nd) |
+| Presentation, PowerPoint (15 slides with speaker notes: problem, architecture, pipeline, results, features, tech stack, next steps) | [docs/CodeTwin_Presentation.pptx](docs/CodeTwin_Presentation.pptx) |
+| Build report: requirements, architecture, ML results, security, testing, remaining work | [docs/REPORT.md](docs/REPORT.md) |
+| Demo guide: the whole flow step by step, logins, questions and fixes (Hinglish) | [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md) |
+| Demo script with a screenshot for each step | [online page](https://claude.ai/artifact/A2tw92Jcjua3o4M83LL6SX) |
+| Gallery of all 25 screens | [online page](https://claude.ai/artifact/3HH8w87SHWnqbGxDSVzKgP) |
+| Files used in the demo (form, ZIP, Google Forms export) | [docs/demo-kit](docs/demo-kit) |
+
+The online pages (claude.ai links) are private until shared from the page's **Share** button.
+
 ## Features
 
 **For teachers, instructors and contest organisers (customers)**
@@ -209,11 +223,12 @@ frontend/e2e/          browser tests (Playwright)
 db/                    codetwin_schema.sql (Azure SQL), schema_sqlite.sql (local port), migrations/, tests/ (SQL Server checks)
 ml/                    labelled set, copy generator, training, benchmark, load test, results
 infra/                 az CLI setup script
-docs/                  build report, plans, Power BI guide, architecture diagram, screenshots
+docs/                  presentation, build report, demo guide and demo kit, plans, Power BI guide, architecture diagram, screenshots
 ```
 
 ## Documentation
 
+- [Presentation (PowerPoint)](docs/CodeTwin_Presentation.pptx) and the [online presentation](https://claude.ai/artifact/VgK9kwdzvW8aE39CpZd8nd)
 - [Demo guide](docs/DEMO_GUIDE.md): showing the whole flow step by step (in Hinglish), with the demo files in [docs/demo-kit](docs/demo-kit)
 - [Build report](docs/REPORT.md): status by requirement, results, security controls, testing, remaining work
 - [Customers, participants and migrations](docs/MIGRATION_PLAN.md): account model, data model changes, forms, imports, privacy rules
